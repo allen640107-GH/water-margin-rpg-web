@@ -5,6 +5,7 @@ import { ITEMS, SHOPS } from '../js/data/items.js';
 import { ARCHETYPES, BOSSES } from '../js/data/enemies.js';
 import { SKILLS } from '../js/data/skills.js';
 import { parse } from '../js/script.js';
+import { THEMES } from '../js/audio.js';
 
 const errs = [], warns = [];
 const TILES = new Set(',.:_*s~=F^#R+rxoT '.split(''));
@@ -45,6 +46,7 @@ function walk(nodes, where, ch) {
       case 'quest': if (!QUESTS[a[0]]) errs.push(`${where}: unknown quest ${a[0]}`); break;
       case 'chapter': if (!CHAPTERS[a[0]]) errs.push(`${where}: unknown chapter ${a[0]}`); break;
       case 'run': if (!SCRIPTS[a[0]]) errs.push(`${where}: run unknown script ${a[0]}`); break;
+      case 'bgm': if (a[0] && a[0] !== 'off' && !THEMES[a[0]]) errs.push(`${where}: unknown bgm ${a[0]}`); break;
       case 'cg': if (a[0] !== 'off' && !a[0].startsWith('bg_')) warns.push(`${where}: cg ${a[0]}`); break;
     }
   }
@@ -67,6 +69,7 @@ for (const [id, d] of Object.entries(MAPS)) {
     else if (!TILES.has(c)) errs.push(`${id}: unknown char '${c}' at ${x},${y}`);
   }
   for (const k of Object.keys(marks)) if (!used.has(k)) warns.push(`${id}: mark ${k} unused`);
+  if (d.bgm && !THEMES[d.bgm]) errs.push(`${id}: unknown bgm ${d.bgm}`);
   for (const k of ['bg', 'battleBg']) if (d[k] && !d[k].startsWith('bg_')) errs.push(`${id}: ${k}`);
   if (!inst.some(i => i.m.type === 'entry' && i.m.id === 'start')) errs.push(`${id}: no start entry`);
   for (const i of inst) {

@@ -2,7 +2,7 @@
 :root {
   --ink: #17130e; --ink2: #2a231a; --paper: #f1e6c9; --paper2: #e2d2a8; --red: #a3241a; --red2: #c8372a; --gold: #d8b25a;
   --text: #fff7e3; --dim: #e9dcbc; --hp: #c8372a; --mp: #2f6fc0; --ok: #3d8b3d;
-  --fs: clamp(16px, calc(9px + 1.15vmin), 22px);
+  --fs: clamp(17px, calc(10px + 1.2vmin), 23px);
   --safe-b: env(safe-area-inset-bottom, 0px); --safe-t: env(safe-area-inset-top, 0px);
   --body: "Noto Sans TC", "Noto Sans CJK TC", "PingFang TC", "Heiti TC", "Microsoft JhengHei", "Source Han Sans TC", sans-serif;
   --serif: 'ShuihuTitle', "Noto Serif TC", "Noto Serif CJK TC", "Songti TC", serif;
@@ -70,7 +70,7 @@ button { font: inherit; font-weight: 800; color: inherit; cursor: pointer; touch
 #title .tbtns button, .pbtn { min-height: 56px; border-radius: 12px; border: 3px solid var(--gold); background: rgba(241,230,201,.96); color: #1b1712; font-size: 1.15em; }
 #title .tbtns button:active, .pbtn:active { background: var(--gold); }
 #title .tbtns button:disabled { opacity: .45; }
-#title .foot { font-size: .8em; color: var(--dim); text-shadow: 0 1px 2px #000; text-align: center; }
+#title .foot { font-size: .95em; color: var(--dim); text-shadow: 0 1px 2px #000; text-align: center; }
 @media (orientation: landscape) and (max-height: 560px) {
   #title { flex-direction: row; align-items: center; justify-content: space-around; }
   #title h1 { font-size: clamp(36px, 12vh, 72px); }
@@ -81,6 +81,7 @@ button { font: inherit; font-weight: 800; color: inherit; cursor: pointer; touch
 
 /* ── 面板（選單/商店） ── */
 #menu, #panel { position: absolute; inset: 0; z-index: 50; background: rgba(10,8,5,.9); display: flex; flex-direction: column; padding: calc(8px + var(--safe-t)) 8px calc(8px + var(--safe-b)); }
+#panel { z-index: 85; }
 .mhead { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
 .mhead h2 { margin: 0 auto 0 4px; font-family: var(--serif); font-size: 1.35em; color: var(--gold); font-weight: 700; }
 .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
@@ -91,7 +92,7 @@ button { font: inherit; font-weight: 800; color: inherit; cursor: pointer; touch
 .row { display: flex; align-items: center; gap: 10px; padding: 8px; border-bottom: 2px solid rgba(60,40,20,.25); }
 .row:last-child { border-bottom: 0; }
 .row .grow { flex: 1; min-width: 0; }
-.row .sub { font-size: .85em; color: #4a3b28; font-weight: 700; }
+.row .sub { font-size: .95em; color: #4a3b28; font-weight: 700; }
 .row button, .sbtn { min-height: 46px; min-width: 64px; border-radius: 10px; border: 2px solid #6a4a20; background: #fff7e3; color: #1b1712; padding: 4px 12px; flex-shrink: 0; }
 .row button:active, .sbtn:active { background: var(--gold); }
 .row button:disabled, .sbtn:disabled { opacity: .4; }
@@ -107,7 +108,7 @@ button { font: inherit; font-weight: 800; color: inherit; cursor: pointer; touch
 .bar.ex i { background: var(--gold); }
 .slot-row { display: flex; gap: 8px; align-items: center; padding: 6px 0; flex-wrap: wrap; }
 .slot-row .lbl { width: 3em; color: var(--red); }
-.note { color: #4a3b28; font-size: .9em; padding: 6px; }
+.note { color: #4a3b28; font-size: .95em; padding: 6px; }
 h3 { margin: 6px 0; font-family: var(--serif); color: var(--red); font-size: 1.15em; }
 .up { color: #1a7a1a; } .down { color: #b0201a; }
 
@@ -129,7 +130,7 @@ h3 { margin: 6px 0; font-family: var(--serif); color: var(--red); font-size: 1.1
 @keyframes shake { 20% { transform: translateX(-8px); } 40% { transform: translateX(7px); } 60% { transform: translateX(-5px); } 80% { transform: translateX(3px); } }
 .foe.act img { transform: scale(1.08) translateY(6px); }
 .st { position: absolute; top: 0; left: 50%; transform: translateX(-50%); display: flex; gap: 3px; flex-wrap: wrap; justify-content: center; }
-.st span, .pst span { font-size: .72em; padding: 0 5px; border-radius: 5px; background: #222; border: 1px solid #fff4; white-space: nowrap; }
+.st span, .pst span { font-size: .92em; padding: 0 5px; border-radius: 5px; background: #222; border: 1px solid #fff4; white-space: nowrap; }
 .pop { position: absolute; left: 50%; top: 35%; transform: translateX(-50%); font-size: 1.9em; font-weight: 900; color: #fff; -webkit-text-stroke: 1.5px #000; text-shadow: 0 3px 4px #000; animation: pop 1s ease-out forwards; pointer-events: none; z-index: 5; white-space: nowrap; }
 .pop.heal { color: #8dff8d; } .pop.crit { color: #ffd34a; font-size: 2.3em; } .pop.miss { color: #ccc; font-size: 1.4em; } .pop.mp { color: #8cc8ff; }
 @keyframes pop { 0% { transform: translate(-50%, 10px) scale(.6); opacity: 0; } 15% { transform: translate(-50%, -6px) scale(1.15); opacity: 1; } 100% { transform: translate(-50%, -46px) scale(1); opacity: 0; } }
@@ -137,7 +138,7 @@ h3 { margin: 6px 0; font-family: var(--serif); color: var(--red); font-size: 1.1
 .pc { position: relative; display: grid; grid-template-columns: auto 1fr; gap: 2px 6px; align-items: center; background: rgba(14,11,8,.9); border: 2px solid #6a5530; border-radius: 10px; padding: 4px 6px; cursor: pointer; min-width: 0; }
 .pc img { width: 46px; height: 46px; border-radius: 50%; border: 2px solid var(--gold); grid-row: span 3; background: #e8dcbc; }
 .pc .pn { font-size: .95em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pc .nums { font-size: .8em; color: var(--dim); white-space: nowrap; }
+.pc .nums { font-size: .95em; color: var(--dim); white-space: nowrap; }
 .pc .bar { height: 8px; margin: 0; }
 .pc.turn { border-color: #ffd36a; box-shadow: 0 0 0 2px #ffd36a, 0 0 14px #ffd36a99; }
 .pc.dead { filter: grayscale(1) brightness(.6); }
@@ -146,7 +147,7 @@ h3 { margin: 6px 0; font-family: var(--serif); color: var(--red); font-size: 1.1
 .pst { position: absolute; top: -8px; right: 4px; display: flex; gap: 2px; }
 .b-cmds { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .b-cmds button { min-height: 52px; border-radius: 10px; border: 3px solid var(--gold); background: rgba(241,230,201,.96); color: #1b1712; font-size: 1.05em; padding: 2px 6px; line-height: 1.15; }
-.b-cmds button small { display: block; font-size: .72em; color: #5a4020; font-weight: 700; }
+.b-cmds button small { display: block; font-size: .92em; color: #5a4020; font-weight: 700; }
 .b-cmds button:disabled { opacity: .45; }
 .b-cmds button.on { background: var(--red); color: #fff; }
 .b-cmds button.on small { color: #fde; }

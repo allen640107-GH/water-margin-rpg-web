@@ -245,10 +245,11 @@ function act() {
   if (i) interact(i);
   else toast('這裡沒有什麼特別的。', 900);
 }
+function stepNow(d) { if (inGame && M.def && !M.moving && !busy()) { lastPos = [M.px, M.py]; tryStep(d); } }
 function bindInput() {
   window.addEventListener('keydown', e => {
     if (!inGame) return;
-    if (e.code in KEYS) { held.add(KEYS[e.code]); M.path = []; M.dest = null; e.preventDefault(); return; }
+    if (e.code in KEYS) { held.add(KEYS[e.code]); M.path = []; M.dest = null; e.preventDefault(); if (!e.repeat) stepNow(KEYS[e.code]); return; }
     if (busy()) return;
     if (e.key === 'Enter' || e.key === ' ' || e.key === 'z' || e.key === 'Z') { e.preventDefault(); act(); }
     else if (e.key === 'Escape' || e.key === 'm' || e.key === 'M') { e.preventDefault(); openMenu(); }
@@ -265,7 +266,7 @@ function bindInput() {
   });
   for (const b of document.querySelectorAll('#dpad .dp')) {
     const d = +b.dataset.d;
-    b.addEventListener('pointerdown', e => { e.preventDefault(); resume(); padDir = d; M.path = []; M.dest = null; try { b.setPointerCapture(e.pointerId); } catch (_) {} });
+    b.addEventListener('pointerdown', e => { e.preventDefault(); resume(); padDir = d; M.path = []; M.dest = null; stepNow(d); try { b.setPointerCapture(e.pointerId); } catch (_) {} });
     const up = () => { if (padDir === d) padDir = null; };
     b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('lostpointercapture', up);
     b.addEventListener('contextmenu', e => e.preventDefault());

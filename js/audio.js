@@ -94,7 +94,7 @@ function gong(t, vol = 0.35) {
 }
 
 // ── 曲目定義（演算法生成，固定種子使每首曲子穩定）──
-const THEMES = {
+export const THEMES = {
   title: { base: 220, bpm: 66, inst: 'flute', drone: true, seed: 7, perc: 'none', len: 32 },
   town: { base: 261.6, bpm: 96, inst: 'pluck', drone: false, seed: 11, perc: 'wood', len: 32 },
   field: { base: 293.7, bpm: 104, inst: 'pluck', drone: true, seed: 23, perc: 'light', len: 32 },
@@ -104,6 +104,7 @@ const THEMES = {
   battle: { base: 220, bpm: 148, inst: 'pluck', drone: false, seed: 61, perc: 'battle', len: 32, minor: true },
   boss: { base: 164.8, bpm: 160, inst: 'pluck', drone: true, seed: 71, perc: 'boss', len: 32, minor: true },
   hall: { base: 261.6, bpm: 80, inst: 'flute', drone: true, seed: 83, perc: 'wood', len: 32 },
+  night: { base: 207.7, bpm: 70, inst: 'flute', drone: true, seed: 109, perc: 'slow', len: 32, minor: true },
   sad: { base: 196, bpm: 60, inst: 'flute', drone: true, seed: 97, perc: 'none', len: 32, minor: true },
 };
 function rng(seed) { let s = seed * 9301 + 49297; return () => { s = (s * 9301 + 49297) % 233280; return s / 233280; }; }
@@ -124,7 +125,7 @@ function startSeq() {
 }
 function tick() {
   if (!ctx || !cur || ctx.state !== 'running') return;
-  const th = THEMES[cur], beat = 60 / th.bpm / 2;
+  const th = THEMES[cur] || THEMES.field, beat = 60 / th.bpm / 2;
   if (nextT < ctx.currentTime - 0.1) nextT = ctx.currentTime + 0.05;
   while (nextT < ctx.currentTime + 0.35) {
     const i = step % th.len, n = seq[i], t = nextT;
