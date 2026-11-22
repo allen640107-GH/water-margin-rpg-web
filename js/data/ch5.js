@@ -158,7 +158,7 @@ const maps = {
 @else
 花榮|哥哥今晚去看花燈吧。只是……那劉高的老婆，哥哥最好避著些。
 @end`),
-      B: npc('花燈小販', 'n_waiter', `
+      B: npc('花燈小販', 'n_merchant', `
 @if flag:qf_caught
 小販|宋押司是好人，劉知寨卻是個貪官……
 @else
@@ -181,7 +181,7 @@ const maps = {
 @quest s5_lamp
 @end
 @end`),
-      K: npc('紅襖小孩', 'n_waiter', `
+      K: npc('紅襖小孩', 'n_child', `
 @if !flag:kid_found
 小孩|嗚嗚……我找不到娘了……
 宋江|莫哭，叔叔帶你去找娘。
@@ -270,7 +270,7 @@ const maps = {
 @else
 李逵|哥哥，鐵牛想吃魚了！
 @end`, { show: 'flag:dz_meet & !flag:lk_join' }),
-      M: npc('魚販', 'n_elder', `
+      M: npc('魚販', 'n_villager', `
 @if quest:s5_market
 魚販|多謝好漢除了那幫惡霸！魚市又熱鬧起來了！
 @else

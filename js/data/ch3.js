@@ -119,7 +119,7 @@ const maps = {
 @quest q3_leiheng done
 @end`, { once: false }),
       X: sign('|「托塔天王」從西溪村奪來的青石寶塔。據說重有千斤。', { glyph: '塔' }),
-      M: npc('貨郎', 'n_waiter', `貨郎|保正，我這裡什麼都有！
+      M: npc('貨郎', 'n_merchant', `貨郎|保正，我這裡什麼都有！
 @shop dongxi`),
       H: npc('莊客', 'e_militia', `
 @if !flag:lt_join
@@ -130,7 +130,7 @@ const maps = {
       J: npc('村婦', 'n_woman', `村婦|晁保正好人哪，去年荒年，他開倉放糧，救了全村的命。`),
       G: foe('bandit@13+bandit@12', { name: '強人', post: `@run xixi_chk` }),
       P: foe('bandit@13+wolf@13', { name: '強人', post: `@run xixi_chk` }),
-      Q: npc('西溪村民', 'n_elder', `
+      Q: npc('西溪村民', 'n_villager', `
 @if quest:s3_xixi
 村民|托塔天王的大恩，西溪村永世不忘！
 @elif flag:xixi_done
@@ -216,9 +216,9 @@ const maps = {
 阮小七|哥哥們，該去黃泥岡了！碼頭在東北邊。
 @end`),
       X: trig(`@run fish_spot`, { once: false, visible: true, name: '漣漪' }),
-      H: npc('漁夫', 'n_elder', `漁夫|那梁山泊的王倫，連打魚都不許，咱們只能在這石碣湖裡打些小魚……
+      H: npc('漁夫', 'n_villager', `漁夫|那梁山泊的王倫，連打魚都不許，咱們只能在這石碣湖裡打些小魚……
 漁夫|官府的巡船也常來勒索，好漢小心。`),
-      Z: npc('船家', 'n_waiter', `船家|蘆葦蕩裡水路彎彎曲曲，認準方向。阮家兄弟在西北邊的碼頭。`),
+      Z: npc('船家', 'n_villager', `船家|蘆葦蕩裡水路彎彎曲曲，認準方向。阮家兄弟在西北邊的碼頭。`),
       G: foe('pirate@13+pirate@12', { name: '水賊' }),
       K: chest('herb', 4),
       Q: foe('archer@13+soldier@13', { name: '巡船' }),
@@ -324,7 +324,7 @@ const maps = {
 @flag cz_warn
 @quest q3_night
 @end`),
-      J: npc('莊客', 'n_waiter', `
+      J: npc('莊客', 'n_villager', `
 @if !flag:cz_gift
 莊客|保正！小的們跟了保正十幾年……保正要走，帶上這些吧！
 @give herb

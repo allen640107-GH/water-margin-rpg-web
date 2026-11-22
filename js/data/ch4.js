@@ -148,7 +148,7 @@ const maps = {
 @else
 嘍囉|這是王頭領的庫房，閒人免進！
 @end`),
-      H: npc('樵夫', 'n_elder', `
+      H: npc('樵夫', 'n_villager', `
 @if !flag:wl_done
 樵夫|山上換了主人，日子就好過了……
 @else

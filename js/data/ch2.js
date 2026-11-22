@@ -110,7 +110,7 @@ const maps = {
 @inn 0
 @end
 @end`),
-      C: npc('獵戶', 'n_elder', `
+      C: npc('獵戶', 'n_villager', `
 獵戶|那大蟲每到黃昏便出來，我們獵戶已經被縣太爺打了好幾頓板子，限期捉拿……
 @if !qactive:s2_hunter & !quest:s2_hunter
 獵戶|岡上不只大蟲，還有一隻金錢豹，咬傷了我兄弟。好漢若能除掉牠，我們必有重謝！
@@ -242,7 +242,7 @@ const maps = {
 @else
 |（靈位前香煙繚繞。武松暗暗咬牙。）
 @end`, { show: '!flag:wu_dead' }),
-      W: npc('潘金蓮', 'n_woman', `
+      W: npc('潘金蓮', 'n_lady', `
 @if flag:wu_testimony & flag:wu_bones
 武松|嫂嫂！我哥哥究竟怎麼死的？今日當著街坊的面，說個明白！
 潘金蓮|（臉色大變）……是、是王婆出的主意，西門大官人給的砒霜……
@@ -259,7 +259,7 @@ const maps = {
 @else
 王婆|老身開這茶坊，也替人說媒拉縴。都頭要喝茶麼？
 @end`, { tint: 'sepia(.6)' }),
-      C: npc('鄆哥', 'n_waiter', `
+      C: npc('鄆哥', 'n_child', `
 @if !flag:wu_dead
 鄆哥|賣雪梨嘍——又大又甜的雪梨！
 @elif flag:wu_testimony
@@ -415,7 +415,7 @@ const maps = {
 ##############################`,
     marks: {
       '1': entry('start'),
-      B: npc('施恩', 'n_waiter', `
+      B: npc('施恩', 'n_noble', `
 @if !flag:shien_ask
 施恩|武都頭！小弟施恩，是本營管營之子。久聞都頭打虎大名！
 施恩|小弟在東門外快活林開了一家酒肉店，被張團練帶來的蔣門神強佔了，還被他打得兩個月起不了床！

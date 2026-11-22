@@ -106,9 +106,10 @@ PROPS = {
   'props_trees': ['tree_pine', 'tree_willow', 'tree_broad', 'tree_snowpine', 'tree_bamboo', 'tree_poplar'],
   'props_misc': ['chest', 'chest_open', 'boulder', 'rock', 'bush', 'reeds', 'signpost', 'lantern', 'well', 'haystack', 'jars', 'cart'],
   'props_doors': ['door_wood', 'door_red', 'door_city', 'door_stockade'],
+  'props_statue': ['statue'],
 }
 
-GRID = {'props_trees': (2, 3), 'props_misc': (3, 4), 'props_doors': (1, 4)}
+GRID = {'props_trees': (2, 3), 'props_misc': (3, 4), 'props_doors': (1, 4), 'props_statue': (1, 1)}
 
 def _cuts(proj, n):
     L = len(proj); cuts = [0]

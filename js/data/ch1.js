@@ -75,7 +75,7 @@ const maps = {
 ############################`,
     marks: {
       '1': entry('start'),
-      W: npc('林娘子', 'n_woman', `
+      W: npc('林娘子', 'n_lady', `
 @if flag:yuemiao_done
 林娘子|官人，那高衙內是太尉的乾兒子，咱們惹不起……你千萬小心。
 林沖|娘子放心，我自有分寸。
@@ -259,7 +259,7 @@ const maps = {
 @flag lu_left
 @hide H
 @end`, { show: 'flag:yezhu_done & !flag:lu_left', mark: true }),
-      J: npc('樵夫', 'n_elder', `樵夫|這野豬林兇險得很，常有公人在此害了犯人性命……客官小心。
+      J: npc('樵夫', 'n_villager', `樵夫|這野豬林兇險得很，常有公人在此害了犯人性命……客官小心。
 樵夫|往東邊小溪那頭，聽說有人藏了東西。`),
       a: foe('wolf@2'),
       b: foe('wolf@2+snake@2'),
@@ -298,7 +298,7 @@ const maps = {
 ##########################`,
     marks: {
       '1': entry('start'),
-      C: npc('柴進', 'n_elder', `
+      C: npc('柴進', 'n_noble', `
 @if flag:hong_done
 柴進|教頭神技，柴進大開眼界！這封書信你收好，將來若有難處，可往梁山泊投奔王倫。
 柴進|滄州的管營、差撥都與我交好，有我的書信，他們不會為難你。
@@ -563,7 +563,7 @@ const maps = {
 #############`,
     marks: {
       '1': entry('start'),
-      X: obj('o_house', '一尊金甲山神，兩邊一個判官、一個小鬼。供桌上積滿了灰。', { name: '山神像', scale: 1.1 }),
+      X: obj('statue', '一尊金甲山神，兩邊一個判官、一個小鬼。供桌上積滿了灰。', { name: '山神像', scale: 1.1 }),
       B: boulder(),
       P: plate({ under: '_' }),
       O: reset(),

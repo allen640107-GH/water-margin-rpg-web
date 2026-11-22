@@ -7,7 +7,7 @@ import { UI, UIH, advanceDialog, say, choice, toast, caption, fade, setCG, openM
 import { battle, B } from './battle.js';
 import { playMusic, currentMusic, sfx, installAudioUnlock, isMuted, setMuted, resume, audioState } from './audio.js';
 import { img, preload, onAnyLoad, url } from './assets.js';
-import { M, MAPH, initMap, resize, loadMap, update, draw, tryStep, pathTo, facing, screenToTile, mapState, visible, instAt, resetBoulders } from './map.js';
+import { M, MAPH, initMap, resize, loadMap, update, draw, tryStep, pathTo, facing, screenToTile, mapState, visible, instAt, resetBoulders, sceneAssets } from './map.js';
 import { MAPS, SCRIPTS, QUESTS, CHAPTERS } from './data/world.js';
 import { ITEMS } from './data/items.js';
 import { HEROES } from './data/heroes.js';
@@ -149,7 +149,8 @@ async function enterMap(id, entry) {
     $('#loc').textContent = def.name;
     playMusic(def.bgm || 'field');
     refreshHud(); draw(performance.now());
-    await preload([...new Set(M.inst.map(i => i.d.img).filter(Boolean))].slice(0, 12), true);
+    await preload(sceneAssets());
+    draw(performance.now());
   });
   fading = false;
   if (def.intro && !flag('v:' + id)) { setFlag('v:' + id); await runScript(def.intro); }
@@ -293,7 +294,7 @@ function loop(now) {
     update(now);
     if (!M.moving) lastPos = [M.px, M.py];
     const anim = M.def.weather || M.def.boat || M.def.anim;
-    if (!B.cur && (M.dirty || M.moving || now - lastDraw > (anim ? 50 : 120))) { draw(now); lastDraw = now; }
+    if (!B.cur && (M.dirty || M.moving || now - lastDraw > (anim ? 50 : 66))) { draw(now); lastDraw = now; }
   }
   requestAnimationFrame(loop);
 }
@@ -313,7 +314,6 @@ async function boot() {
   bindInput();
   Save.migrateAll();
   await preload(['bg_title', 'ui_paper']);
-  img('t_grass'); img('t_dirt'); img('o_tree');
   $('#boot').remove();
   showTitle();
   requestAnimationFrame(loop);

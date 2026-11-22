@@ -89,7 +89,7 @@ const maps = {
 @end`),
       G: foe('militia@24+militia@23', { name: '巡莊莊客' }),
       H: foe('dog@24+dog@24+militia@23', { name: '巡莊莊客' }),
-      J: npc('樵夫', 'n_elder', `樵夫|獨龍岡上三座莊：祝家莊、扈家莊、李家莊。三莊結盟，祝家最強，有個教師叫欒廷玉，一條鐵棒天下無敵……`),
+      J: npc('樵夫', 'n_villager', `樵夫|獨龍岡上三座莊：祝家莊、扈家莊、李家莊。三莊結盟，祝家最強，有個教師叫欒廷玉，一條鐵棒天下無敵……`),
       K: chest('armor4', 1),
       E: exit('lijia', 'start', '李家莊', { cond: 'flag:sq_join', deny: '|往東是李家莊。' }),
     },
@@ -122,7 +122,7 @@ const maps = {
     marks: {
       '1': entry('start'),
       X: exit('zhudian', 'start', '祝家店'),
-      A: npc('李應', 'n_elder', `
+      A: npc('李應', 'n_noble', `
 @if !flag:li_done
 李應|在下李應，人稱「撲天鵰」。梁山泊的好漢光臨，有失遠迎。
 宋江|李莊主，祝家莊與我梁山結怨，宋江不願妄動刀兵，想請莊主從中說和。
@@ -165,7 +165,7 @@ const maps = {
 @else
 鍾離老人|記住了，見白楊樹便轉彎！
 @end`),
-      W: npc('老漢的井', 'o_boulder', `
+      W: npc('老漢的井', 'well', `
 @if qactive:s6_well
 |井口被大石頭和泥土堵得嚴嚴實實。
 @choice 叫李逵、魯智深搬開大石頭|算了
@@ -179,7 +179,7 @@ const maps = {
 @end
 @else
 |一口被石頭填住的井。
-@end`, { img: 'o_boulder', show: '!quest:s6_well' }),
+@end`, { img: 'well', show: '!quest:s6_well' }),
       G: foe('militia@24+archer@24', { name: '祝家探子' }),
       P: foe('dog@24+dog@24+militia@24', { name: '祝家探子' }),
       Z: foe('archer@24+archer@24+militia@23', { name: '祝家探子' }),
@@ -309,9 +309,9 @@ const maps = {
 #############################`,
     marks: {
       '1': entry('start'),
-      a: obj('o_tree', '一棵白楊樹。樹皮雪白，在密林中格外醒目。', { name: '白楊', scale: 1.2 }),
-      b: obj('o_tree', '一棵白楊樹。樹皮雪白，在密林中格外醒目。', { name: '白楊', scale: 1.2 }),
-      c: obj('o_tree', '一棵白楊樹。樹皮雪白，在密林中格外醒目。', { name: '白楊', scale: 1.2 }),
+      a: obj('tree_poplar', '一棵白楊樹。樹皮雪白，在密林中格外醒目。', { name: '白楊', scale: 1.2 }),
+      b: obj('tree_poplar', '一棵白楊樹。樹皮雪白，在密林中格外醒目。', { name: '白楊', scale: 1.2 }),
+      c: obj('tree_poplar', '一棵白楊樹。樹皮雪白，在密林中格外醒目。', { name: '白楊', scale: 1.2 }),
       G: trig(`
 |腳下一空——陷坑！四周伏兵齊出！
 @battle militia@25+militia@25+archer@24 bg=bg_pantuolu
