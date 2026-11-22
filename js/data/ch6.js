@@ -10,10 +10,17 @@ const quests = {
   q6_li: { name: '撲天鵰李應', desc: '到李家莊拜會李應，請他引路。' },
   q6_maze: { name: '盤陀路', desc: '祝家莊外是迷宮般的盤陀路。「見白楊樹便轉彎」。' },
   q6_zhu: { name: '三打祝家莊', desc: '攻破祝家莊：放下吊橋，擊敗祝氏三傑與教師欒廷玉。' },
+  q6_hu: { name: '一丈青扈三娘', desc: '扈家莊與祝家莊結盟。往李家莊西邊的扈家莊，讓扈家莊不再相助祝家。' },
+  s6_hutai: { name: '扈太公的心事', desc: '扈太公擔心莊外祝家兵丁騷擾，替他趕走。', side: true },
   s6_well: { name: '鍾離老人的井', desc: '鍾離老人家的井被祝家莊兵丁填了，幫他清出來。', side: true },
 };
 
 const scripts = {
+  hutai_chk: `
+@if flag:k:hujia:7,10 & flag:k:hujia:17,10 & !flag:hutai_ok
+@flag hutai_ok
+|騷擾扈家莊的祝家兵丁都被趕走了。回去告訴扈太公吧。
+@end`,
   ending: `
 @if !flag:ch6_done
 @flag ch6_done
@@ -100,7 +107,7 @@ const maps = {
 #TT,,,,,RRRRRRRRR,,,,,,TT#
 #T,,,,,,RRRRRRRRR,,,,,,,T#
 #,,,,,,,RRRR+RRRR,,,,,,,,#
-#,,,,,,,,,,,A,,,,,,,,,,,,#
+#U2,,,,,,,,,A,,,,,,,,,,,,#
 #,,,,,,,::::::::::,,,,,,,#
 #,K,,,,,:,,,,,,,,:,,,G,,,#
 #,,,,,,,:,,B,,,,,:,,,,,,,#
@@ -132,6 +139,9 @@ const maps = {
 @flag li_done
 @quest q6_li done
 @quest q6_maze
+李應|還有一事：西邊的扈家莊與祝家莊結了親。扈太公的女兒「一丈青」扈三娘，使兩口日月雙刀，武藝了得。
+李應|若不先穩住扈家莊，打祝家莊時，必被兩面夾擊。
+@quest q6_hu
 @else
 李應|宋頭領，祝家莊就拜託了。李應傷好之後，再來相助！
 @end`),
@@ -174,11 +184,105 @@ const maps = {
       P: foe('dog@24+dog@24+militia@24', { name: '祝家探子' }),
       Z: foe('archer@24+archer@24+militia@23', { name: '祝家探子' }),
       K: chest('pill', 3),
-      E: exit('pantuolu', 'start', '盤陀路', { cond: 'flag:poplar', deny: '李應|盤陀路沒人引路，萬萬去不得！先找鍾離老人問問。' }),
+      E: exit('pantuolu', 'start', '盤陀路', { cond: 'flag:poplar & flag:hu_done', deny: `
+@if !flag:poplar
+李應|盤陀路沒人引路，萬萬去不得！先找鍾離老人問問。
+@else
+吳用|且慢。西邊扈家莊未定，貿然深入，恐被兩面夾擊。先去扈家莊吧。
+@end` }),
+      U: exit('hujia', 'start', '扈家莊', { cond: 'flag:li_done', deny: '|往西是扈家莊。先拜會李莊主再說。' }),
+      '2': entry('hujia'),
     },
     intro: `
 |李家莊。莊院高大，門前一條清溪，橋上站著幾個莊丁。
 @quest q6_li`,
+  },
+
+  hujia: {
+    name: '扈家莊', ch: 6, bg: 'bg_village', battleBg: 'bg_zhujiazhuang', bgm: 'field', ground: ',',
+    grid: `
+##########################
+#^^^^^^RRRRRRRRRRRR^^^^^^#
+#^^TT,,RRRRRR+RRRRR,,TT^^#
+#^T,,,,,,,,,,Z,,,,,,,,,T^#
+#^,,,,,,,,,,,,,,,,,,,,,,^#
+#^,,K,,,,G,,,,,,H,,,,,,,^#
+#^RRR,,,,,,,,,,,,,,,,RRR^#
+#^RRR,,,,,,,,,,,,,,,,RRR^#
+#^,,,,,,,A,,,,,,,,,B,,,,^#
+#^TT,,,,,,,,,,,,,,,,,,TT^#
+#^^T,,,J,,,,,,,,,P,,,,T^^#
+#^^^,,,,,,,,,,,,,,,,,,^^^#
+#^^^^,,,,,,,X,,,,,,,^^^^^#
+#^^^^^,,,,,,,,,,,,,^^^^^^#
+#^^^^^^,,,,,,,,,,,^^^^^^^#
+#^^^^^^^,,,,,,,,,^^^^^^^^#
+#^^^^^^^^^^^1E^^^^^^^^^^^#
+##########################`,
+    marks: {
+      '1': entry('start'),
+      E: exit('lijia', 'hujia', '李家莊'),
+      X: trig(`
+@if !flag:hu_meet
+|剛到扈家莊外，一彪人馬從莊裡衝出。為首一員女將，騎一匹青鬃馬，手使兩口日月雙刀。
+扈三娘|梁山泊的草寇，也敢來獨龍岡撒野！
+李逵|好兇的婆娘！鐵牛來會會你！
+扈三娘|（冷笑）黑廝，看刀！
+@battle militia@25+militia@25+archer@24 bg=bg_zhujiazhuang
+|扈三娘雙刀翻飛，李逵竟招架不住，被逼退了好幾步。扈三娘見好就收，退回莊中去了。
+李逵|哎呀呀……那婆娘好快的刀！
+林沖|（沉吟）這女將刀法精妙，不可小覷。待林沖去會她。
+@flag hu_meet
+@end`),
+      A: npc('扈家莊民', 'n_woman', `
+@if flag:hu_done
+婦人|扈家莊不打仗了，真是謝天謝地。
+@else
+婦人|我們三娘子是獨龍岡第一女將，和祝家三少爺祝彪訂了親。
+婦人|其實扈家莊的人都不喜歡祝家。祝家仗勢欺人，連扈太公都受他們的氣……
+@end`),
+      B: npc('扈太公', 'n_elder', `
+@if quest:s6_hutai
+扈太公|多謝好漢們。扈家莊不會再幫祝家了。
+@elif flag:hutai_ok
+扈太公|祝家的兵丁都被趕走了！老漢……老漢不知如何報答。這株老參，請好漢收下。
+@give elixir
+@give elixir
+@quest s6_hutai done
+@else
+扈太公|你們……是梁山泊的人？老漢不想打仗。只是祝家硬拉扈家莊下水……
+扈太公|莊子南邊來了幾隊祝家莊的兵丁，名為「助戰」，實則在莊裡吃喝搶掠。好漢若能趕走他們……
+@if !qactive:s6_hutai
+@quest s6_hutai
+@end
+@end`),
+      G: foe('militia@25+militia@25', { name: '扈家莊丁' }),
+      H: foe('militia@25+archer@25', { name: '扈家莊丁' }),
+      J: foe('militia@25+dog@25+dog@24', { name: '祝家兵丁', post: `@run hutai_chk` }),
+      P: foe('armored@25+archer@25', { name: '祝家兵丁', post: `@run hutai_chk` }),
+      K: chest('elixir', 1),
+      Z: trig(`
+@if !flag:hu_done
+|扈家莊門前。扈三娘和她的兄長扈成擺開陣勢。
+扈成|梁山好漢，我扈家與你們無冤無仇！何苦相逼？
+宋江|扈莊主，宋江不願與扈家為敵。只要扈家莊不助祝家，梁山絕不犯扈家一草一木。
+扈三娘|哼，花言巧語！哥哥，別聽他的！
+@battle hucheng+militia@25+militia@25 bg=bg_zhujiazhuang
+扈三娘|哥哥退後！我來！
+@battle hu3niang bg=bg_zhujiazhuang
+|林沖挺丈八蛇矛，與扈三娘鬥了十數合。賣個破綻，放她雙刀砍進來，把矛一逼，輕舒猿臂，將扈三娘活捉過馬！
+扈三娘|放開我！
+林沖|姑娘刀法很好。只可惜跟錯了人。
+扈成|（下馬拜倒）宋頭領！扈成願降！從此扈家莊閉門自守，絕不再助祝家一兵一卒！
+宋江|好。三娘子先送上梁山，好生看待，待祝家莊事了，再說不遲。
+@flag hu_done
+@quest q6_hu done
+@exp 200
+吳用|好，西邊已定。如今可以放心去走盤陀路了。
+@end`),
+    },
+    intro: `
+|扈家莊。莊前一條小河，河邊栽著一排垂柳。莊門上插著「扈」字大旗。`,
   },
 
   pantuolu: {

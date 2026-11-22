@@ -63,6 +63,7 @@ export const ITEMS = {
   boots: { name: '神行甲馬', type: 'eq', slot: 'c', spd: 7, price: 300, desc: '戴宗之物，日行八百里。' },
   jade: { name: '羊脂玉珮', type: 'eq', slot: 'c', luk: 8, price: 220 },
   tiger_skin: { name: '景陽岡虎皮', type: 'eq', slot: 'c', atk: 8, hp: 60, price: 0, desc: '武松打死的大蟲之皮。' },
+  lasso: { name: '紅錦套索', type: 'eq', slot: 'c', atk: 6, spd: 5, price: 0, desc: '一丈青扈三娘的紅錦套索。' },
   belt: { name: '獅蠻金帶', type: 'eq', slot: 'c', def: 9, hp: 40, price: 0 },
   nopoison: { name: '避毒珠', type: 'eq', slot: 'c', def: 4, immune: 'poison', price: 0, desc: '免疫中毒。' },
   banner: { name: '杏黃旗角', type: 'eq', slot: 'c', hp: 120, def: 6, atk: 6, price: 0, desc: '「替天行道」旗之一角。' },
