@@ -1,0 +1,458 @@
+// 回合制戰鬥：依身法排序行動；指令 攻擊／招式／道具／防禦／撤退／自動
+import { $, h, sleep } from './dom.js';
+import { G, maxStats, heroSkills, frontParty, activeParty, gainExp, give } from './state.js';
+import { HEROES } from './data/heroes.js';
+import { SKILLS, STATUS } from './data/skills.js';
+import { ITEMS } from './data/items.js';
+import { ARCHETYPES, BOSSES } from './data/enemies.js';
+import { url } from './assets.js';
+import { sfx, playMusic } from './audio.js';
+import { UI, applyItem, itemDesc } from './ui.js';
+
+export const B = { cur: null }; // 測試用：目前戰鬥狀態
+
+function rnd(a, b) { return a + Math.random() * (b - a); }
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+export function makeEnemy(tok) {
+  let e;
+  if (tok.includes('@')) {
+    const [arch, lvS] = tok.split('@'); const A = ARCHETYPES[arch]; const lv = +lvS || 1;
+    if (!A) throw new Error('未知敵人 ' + tok);
+    let tier = A.tiers[0]; for (const t of A.tiers) if (lv >= t[0]) tier = t;
+    const L = lv - 1;
+    e = { key: arch, name: tier[1], img: A.img, tint: tier[2] || '', kind: A.kind, lv,
+      mhp: Math.round(A.hp * (1 + 0.27 * L)), atk: Math.round(A.atk * (1 + 0.155 * L)), def: Math.round(A.def * (1 + 0.155 * L)),
+      int: Math.round(A.int * (1 + 0.15 * L)), spd: Math.round(A.spd + 0.55 * L), luk: 3 + Math.floor(L / 3),
+      exp: Math.round(A.exp * (1 + 0.5 * L + 0.03 * L * L)), gold: Math.round(A.gold * (1 + 0.35 * L)), acts: A.acts, drop: A.drop };
+  } else {
+    const Bo = BOSSES[tok]; if (!Bo) throw new Error('未知頭目 ' + tok);
+    e = { key: tok, ...Bo, mhp: Bo.hp, luk: 6 + Math.floor(Bo.lv / 3), tint: Bo.tint || '' };
+  }
+  e.hp = e.mhp; e.isFoe = true; e.st = {}; e.buffs = []; e.pi = 0;
+  return e;
+}
+
+function heroActor(hero) {
+  return { hero, isFoe: false, name: HEROES[hero.id].name, st: {}, buffs: [], get hp() { return hero.hp; }, set hp(v) { hero.hp = v; },
+    get mp() { return hero.mp; }, set mp(v) { hero.mp = v; } };
+}
+function baseStat(a, k) {
+  if (a.isFoe) return k === 'mhp' ? a.mhp : (a[k] || 0);
+  const m = maxStats(a.hero); return k === 'mhp' ? m.hp : k === 'mmp' ? m.mp : (m[k] || 0);
+}
+function stat(a, k) {
+  let v = baseStat(a, k);
+  for (const b of a.buffs) if (b.stat === k) v *= b.mult;
+  if (a.enraged && (k === 'atk' || k === 'spd')) v *= k === 'atk' ? 1.3 : 1.15;
+  return v;
+}
+function evaMult(a) { let m = 1; for (const b of a.buffs) if (b.stat === 'eva') m *= b.mult; return m; }
+const alive = arr => arr.filter(a => a.hp > 0);
+
+let S = null; // 目前戰鬥
+
+export async function battle(spec, opts = {}) {
+  const toks = spec.split('+').map(s => s.trim()).filter(Boolean);
+  const foes = toks.map(makeEnemy);
+  const snapshot = JSON.stringify({ roster: G.s.roster, inv: G.s.inv, gold: G.s.gold });
+  const isBoss = foes.some(f => f.boss);
+  const prevMusic = opts.prevMusic;
+  playMusic(isBoss ? 'boss' : 'battle');
+  sfx('encounter');
+  const res = await runBattle(foes, { ...opts, isBoss });
+  if (res === 'retry') {
+    const sn = JSON.parse(snapshot); G.s.roster = sn.roster; G.s.inv = sn.inv; G.s.gold = sn.gold;
+    return battle(spec, opts);
+  }
+  if (prevMusic) playMusic(prevMusic);
+  return res;
+}
+
+function delay(ms) { return sleep(G.s.settings.fast ? ms * 0.4 : ms); }
+
+function runBattle(foes, opts) {
+  return new Promise(async (resolve) => {
+    const root = $('#battle'); root.innerHTML = ''; root.hidden = false; UI.busy++;
+    root.style.backgroundImage = `url(${url(opts.bg || 'bg_yezhulin')})`;
+    const allies = frontParty().map(heroActor);
+    S = B.cur = { foes, allies, opts, round: 0, log: [], picking: null, over: false, auto: !!G.s.settings.auto };
+    const logEl = h('div', { class: 'b-log' }, '');
+    const foeEl = h('div', { class: 'b-foes' });
+    const partyEl = h('div', { class: 'b-party' });
+    const cmdEl = h('div', { class: 'b-cmds' });
+    const fxEl = h('div', { class: 'fx' });
+    const banner = h('div', { class: 'banner' });
+    root.append(logEl, foeEl, partyEl, cmdEl, fxEl, banner);
+    S.el = { logEl, foeEl, partyEl, cmdEl, fxEl, banner, root };
+    for (const f of foes) {
+      const im = h('img', { src: url(f.img), alt: f.name, style: f.tint ? `filter:${f.tint} drop-shadow(0 6px 8px rgba(0,0,0,.7))` : '' });
+      f.el = h('div', { class: 'foe' + (f.big || (f.boss && foes.length === 1) ? ' big' : '') }, h('div', { class: 'st' }), im, h('div', { class: 'fn' }, f.name + (f.boss ? '' : ` Lv${f.lv}`)), h('div', { class: 'bar' }, h('i')));
+      f.el.addEventListener('click', () => S.picking && S.picking('foe', f));
+      foeEl.append(f.el);
+    }
+    for (const a of allies) {
+      const id = a.hero.id;
+      a.el = h('div', { class: 'pc' }, h('img', { src: url(HEROES[id].img, true), alt: '' }), h('div', { class: 'pn' }, HEROES[id].name),
+        h('div', { class: 'nums' }), h('div', { class: 'bar' }, h('i')), h('div', { class: 'pst' }));
+      a.el.addEventListener('click', () => S.picking && S.picking('ally', a));
+      partyEl.append(a.el);
+    }
+    refresh();
+    const names = [...new Set(foes.map(f => f.name))].join('、');
+    log(opts.isBoss ? `${names} 擋住了去路！` : `遭遇 ${names}！`);
+    await delay(700);
+
+    let result = null;
+    while (!result) {
+      S.round++;
+      const order = [...alive(allies), ...alive(foes)].map(a => ({ a, s: stat(a, 'spd') * rnd(0.85, 1.15) })).sort((x, y) => y.s - x.s).map(x => x.a);
+      for (const a of order) {
+        if (a.hp <= 0) continue;
+        if (!alive(foes).length || !alive(allies).length) break;
+        const skip = await startTurn(a);
+        refresh();
+        if (a.hp <= 0) continue;
+        if (skip) continue;
+        let act;
+        if (a.isFoe) act = foeAI(a);
+        else {
+          a.defending = false;
+          act = S.auto ? heroAI(a) : await waitCmd(a);
+          if (act && act.type === 'flee') {
+            const ps = alive(allies).reduce((s, x) => s + stat(x, 'spd'), 0) / Math.max(1, alive(allies).length);
+            const es = alive(foes).reduce((s, x) => s + stat(x, 'spd'), 0) / Math.max(1, alive(foes).length);
+            if (Math.random() < 0.55 + (ps - es) * 0.025) { log('全隊撤退成功！'); await delay(700); result = 'flee'; break; }
+            log('撤退失敗！'); await delay(600); continue;
+          }
+        }
+        if (act) await perform(a, act);
+        if (!a.isFoe) a.el.classList.remove('turn');
+        refresh();
+        if (!alive(foes).length) { result = 'win'; break; }
+        if (!alive(allies).length) { result = 'lose'; break; }
+      }
+      if (!result && !alive(foes).length) result = 'win';
+      if (!result && !alive(allies).length) result = 'lose';
+      // 回合結束：buff 遞減
+      for (const a of [...allies, ...foes]) { a.buffs = a.buffs.filter(b => --b.turns > 0); }
+      refresh();
+    }
+    S.over = true;
+    cmdEl.innerHTML = '';
+    let out = result;
+    if (result === 'win') await victory(foes, allies);
+    else if (result === 'lose') out = await defeat(opts);
+    // 倒下的同伴以 1 點體力復活
+    if (out !== 'retry') for (const x of activeParty()) if (x.hp <= 0) x.hp = 1;
+    root.hidden = true; root.innerHTML = ''; UI.busy--;
+    S = B.cur = null;
+    resolve(out);
+  });
+}
+
+function log(msg) { if (!S) return; S.el.logEl.textContent = msg; S.log.push(msg); if (S.log.length > 60) S.log.shift(); }
+
+function refresh() {
+  if (!S) return;
+  for (const f of S.foes) {
+    f.el.classList.toggle('dead', f.hp <= 0);
+    f.el.querySelector('.bar i').style.width = Math.max(0, f.hp / f.mhp * 100) + '%';
+    const st = f.el.querySelector('.st'); st.innerHTML = '';
+    for (const k of Object.keys(f.st)) if (f.st[k] > 0 && STATUS[k]) st.append(h('span', { style: `background:${STATUS[k].color}` }, STATUS[k].name));
+    for (const b of f.buffs) st.append(h('span', null, (b.mult > 1 ? '↑' : '↓') + ({ atk: '攻', def: '防', spd: '速', eva: '閃', int: '智' }[b.stat] || '')));
+  }
+  for (const a of S.allies) {
+    const m = maxStats(a.hero);
+    a.el.querySelector('.nums').textContent = `體${Math.max(0, a.hero.hp)}/${m.hp} 氣${a.hero.mp}`;
+    a.el.querySelector('.bar i').style.width = Math.max(0, a.hero.hp / m.hp * 100) + '%';
+    a.el.classList.toggle('dead', a.hero.hp <= 0);
+    const st = a.el.querySelector('.pst'); st.innerHTML = '';
+    for (const k of Object.keys(a.st)) if (a.st[k] > 0 && STATUS[k]) st.append(h('span', { style: `background:${STATUS[k].color}` }, STATUS[k].name));
+    if (a.buffs.length) st.append(h('span', { style: 'background:#2a6' }, '強化'));
+  }
+}
+
+function pop(el, text, cls = '') {
+  const p = h('div', { class: 'pop ' + cls }, text); el.append(p); setTimeout(() => p.remove(), 1000);
+  el.classList.remove('hit'); void el.offsetWidth; if (cls !== 'heal' && cls !== 'mp') el.classList.add('hit');
+}
+function flash(cls) { const f = S.el.fxEl; f.className = 'fx'; void f.offsetWidth; f.className = 'fx ' + cls; }
+function showBanner(t) { S.el.banner.innerHTML = ''; S.el.banner.append(h('span', null, t)); }
+
+// 回合開始：異常狀態處理。回傳 true 表示跳過行動
+async function startTurn(a) {
+  if (S && !a.isFoe) a.el.classList.add('turn');
+  let skip = false;
+  for (const k of ['poison', 'burn']) if (a.st[k] > 0) {
+    const mhp = stat(a, 'mhp'); const d = Math.max(1, Math.floor(mhp * (a.boss ? 0.025 : k === 'poison' ? 0.07 : 0.06)));
+    a.hp = Math.max(0, a.hp - d); a.st[k]--; pop(a.el, '-' + d); log(`${a.name} ${STATUS[k].name}，損失 ${d} 體力。`); await delay(450);
+    if (a.hp <= 0) { log(`${a.name} 倒下了！`); if (a.isFoe) G.s.kills++; skip = true; }
+  }
+  if (!skip && a.st.stun > 0) { a.st.stun--; log(`${a.name} 暈眩中，無法行動。`); await delay(500); skip = true; }
+  else if (!skip && a.st.sleep > 0) { a.st.sleep--; log(`${a.name} 昏睡不醒……`); await delay(500); skip = true; }
+  if (a.st.taunt > 0 && !skip) a.st.taunt--;
+  if (!a.isFoe && skip) a.el.classList.remove('turn');
+  return skip;
+}
+
+// ───── 指令選擇 ─────
+function cmdBtn(label, sub, fn, dis, cls) { return h('button', { onclick: fn, disabled: dis, class: cls || null }, label, sub ? h('small', null, sub) : null); }
+function waitCmd(a) {
+  return new Promise(res => {
+    const el = S.el.cmdEl;
+    const done = act => { el.innerHTML = ''; a.el.classList.remove('turn'); S.picking = null; clearPick(); res(act); };
+    const main = () => {
+      if (S.auto) { done(heroAI(a)); return; }
+      el.innerHTML = ''; clearPick(); S.picking = null;
+      log(`${a.name} 的回合——請下指令。`);
+      const skills = heroSkills(a.hero);
+      el.append(
+        cmdBtn('攻擊', null, () => { sfx('click'); target(SKILLS.attack, t => done({ type: 'skill', sk: 'attack', t })); }),
+        cmdBtn('招式', `${skills.length} 式`, () => { sfx('click'); skillMenu(); }, !skills.length),
+        cmdBtn('道具', null, () => { sfx('click'); itemMenu(); }),
+        cmdBtn('防禦', '減傷五成', () => { sfx('click'); done({ type: 'defend' }); }),
+        cmdBtn('撤退', S.opts.noEscape ? '不可撤退' : null, () => { sfx('click'); done({ type: 'flee' }); }, !!S.opts.noEscape),
+        cmdBtn('自動', S.auto ? '開' : '關', () => { sfx('click'); S.auto = !S.auto; G.s.settings.auto = S.auto; if (S.auto) done(heroAI(a)); else main(); }, false, S.auto ? 'on' : null));
+    };
+    const back = () => cmdBtn('← 返回', null, () => { sfx('click'); main(); }, false, 'wide');
+    const skillMenu = () => {
+      el.innerHTML = ''; const list = h('div', { class: 'b-list' });
+      for (const sk of heroSkills(a.hero)) {
+        const Sk = SKILLS[sk];
+        list.append(cmdBtn(`${Sk.name}　氣${Sk.mp}`, Sk.desc, () => { sfx('click'); target(Sk, t => done({ type: 'skill', sk, t })); }, a.hero.mp < Sk.mp));
+      }
+      el.append(list, back());
+    };
+    const itemMenu = () => {
+      el.innerHTML = ''; const list = h('div', { class: 'b-list' });
+      const ids = Object.keys(G.s.inv).filter(k => ITEMS[k] && ITEMS[k].type === 'use' && G.s.inv[k] > 0);
+      if (!ids.length) list.append(h('div', { class: 'note', style: 'color:#fff' }, '沒有可用的道具。'));
+      for (const id of ids) list.append(cmdBtn(`${ITEMS[id].name} ×${G.s.inv[id]}`, itemDesc(id), () => { sfx('click'); target(ITEMS[id], t => done({ type: 'item', id, t })); }));
+      el.append(list, back());
+    };
+    const target = (Sk, cb) => {
+      const tg = Sk.target;
+      if (tg === 'self') return cb([a]);
+      if (tg === 'enemies') return cb(alive(S.foes));
+      if (tg === 'allies') return cb(S.allies.filter(x => x.hp > 0));
+      el.innerHTML = '';
+      const pool = tg === 'enemy' ? alive(S.foes) : tg === 'dead' ? S.allies.filter(x => x.hp <= 0) : S.allies.filter(x => x.hp > 0);
+      if (!pool.length) { log('沒有可選擇的對象。'); main(); return; }
+      if (pool.length === 1 && tg === 'enemy') return cb(pool);
+      log(tg === 'enemy' ? '請點選要攻擊的敵人。' : '請點選對象。');
+      for (const p of pool) p.el.classList.add('pick');
+      S.picking = (kind, x) => { if (pool.includes(x)) { sfx('click'); cb([x]); } };
+      el.append(back());
+    };
+    main();
+  });
+}
+function clearPick() { if (!S) return; for (const x of [...S.foes, ...S.allies]) x.el.classList.remove('pick'); }
+
+// ───── AI ─────
+function heroAI(a) {
+  const sks = heroSkills(a.hero).map(k => [k, SKILLS[k]]).filter(([, s]) => s.mp <= a.hero.mp);
+  const hurt = S.allies.filter(x => x.hp > 0 && x.hp < stat(x, 'mhp') * 0.4);
+  const dead = S.allies.filter(x => x.hp <= 0);
+  const rev = sks.find(([, s]) => s.kind === 'revive');
+  if (dead.length && rev) return { type: 'skill', sk: rev[0], t: [dead[0]] };
+  const heal = sks.find(([, s]) => s.kind === 'heal' && s.target !== 'self');
+  if (hurt.length && heal) return { type: 'skill', sk: heal[0], t: heal[1].target === 'allies' ? S.allies.filter(x => x.hp > 0) : [hurt[0]] };
+  if (a.hp < stat(a, 'mhp') * 0.25) {
+    const it = ['pill', 'herb', 'bun', 'elixir'].find(k => G.s.inv[k] > 0);
+    if (it) return { type: 'item', id: it, t: [a] };
+  }
+  const foes = alive(S.foes);
+  const weakest = foes.slice().sort((x, y) => x.hp - y.hp)[0];
+  const dmg = sks.filter(([, s]) => s.kind === 'phys' || s.kind === 'mag' || s.kind === 'steal');
+  const buffs = sks.filter(([, s]) => (s.kind === 'buff' || s.kind === 'debuff') && s.target !== 'self');
+  if (buffs.length && S.round % 4 === 1 && a.hero.mp > stat(a, 'mmp') * 0.5 && Math.random() < 0.5) {
+    const [k, s] = pick(buffs); return { type: 'skill', sk: k, t: s.target === 'enemies' ? foes : s.target === 'allies' ? S.allies.filter(x => x.hp > 0) : [weakest] };
+  }
+  if (dmg.length && a.hero.mp > stat(a, 'mmp') * 0.25 && Math.random() < 0.7) {
+    const multi = dmg.filter(([, s]) => s.target === 'enemies');
+    const [k, s] = foes.length >= 3 && multi.length ? multi[multi.length - 1] : dmg[dmg.length - 1];
+    return { type: 'skill', sk: k, t: s.target === 'enemies' ? foes : [weakest] };
+  }
+  return { type: 'skill', sk: 'attack', t: [weakest] };
+}
+
+function foeAI(f) {
+  let sk = 'attack';
+  if (f.pattern) { sk = f.pattern[f.pi % f.pattern.length]; f.pi++; }
+  else if (f.acts) { for (const [k, p] of f.acts) if (Math.random() < p) { sk = k; break; } }
+  const Sk = SKILLS[sk];
+  const al = alive(S.allies);
+  let t;
+  if (Sk.target === 'enemies') t = al;
+  else if (Sk.target === 'self') t = [f];
+  else if (Sk.target === 'allies') t = alive(S.foes);
+  else {
+    const taunt = al.filter(x => x.st.taunt > 0);
+    t = [taunt.length && Math.random() < 0.75 ? taunt[0] : pick(al)];
+  }
+  return { type: 'skill', sk, t };
+}
+
+// ───── 執行行動 ─────
+async function perform(a, act) {
+  if (act.type === 'defend') { a.defending = true; log(`${a.name} 擺好架勢防禦。`); sfx('buff'); await delay(450); return; }
+  if (act.type === 'item') {
+    const it = ITEMS[act.id]; give(act.id, -1);
+    log(`${a.name} 使用了「${it.name}」。`);
+    if (it.dmg) {
+      sfx('fire'); flash('redf');
+      for (const t of act.t.filter(x => x.hp > 0)) { const d = Math.round(it.dmg * rnd(0.9, 1.1)); hurt(t, d, a); pop(t.el, '-' + d); }
+    } else {
+      for (const t of act.t) {
+        const before = t.hero.hp, bmp = t.hero.mp;
+        applyItem(it, [t.hero]);
+        if (it.cure) t.st = {};
+        if (t.hero.hp > before) pop(t.el, '+' + (t.hero.hp - before), 'heal');
+        else if (t.hero.mp > bmp) pop(t.el, '+' + (t.hero.mp - bmp), 'mp');
+      }
+      sfx('heal'); flash('healf');
+    }
+    await delay(650); return;
+  }
+  const Sk = SKILLS[act.sk];
+  if (!a.isFoe && Sk.mp) a.hero.mp -= Sk.mp;
+  if (act.sk !== 'attack') { showBanner(Sk.name); log(`${a.name}：「${Sk.name}」！`); }
+  else log(`${a.name} 發動攻擊。`);
+  if (a.isFoe) { a.el.classList.add('act'); setTimeout(() => a.el && a.el.classList.remove('act'), 400); }
+  await delay(act.sk === 'attack' ? 260 : 520);
+  const fxs = { thunder: 'thunder', magic: 'thunder', fire: 'fire', water: 'water', arrow: 'arrow', heal: 'heal', buff: 'buff', debuff: 'debuff', big: 'crit', claw: 'hit', sweep: 'slash', multi: 'hit', chain: 'hit', thrust: 'slash', slash: 'slash' };
+  sfx(fxs[Sk.fx] || 'hit');
+  if (Sk.fx === 'thunder' || Sk.fx === 'magic') flash('thunder');
+  else if (Sk.fx === 'big') flash('flash');
+  if (act.sk.startsWith('t_')) sfx('roar');
+
+  let targets = act.t.filter(x => Sk.kind === 'revive' ? x.hp <= 0 : x.hp > 0);
+  if (!targets.length && (Sk.target === 'enemy')) { const pool = a.isFoe ? alive(S.allies) : alive(S.foes); if (pool.length) targets = [pick(pool)]; }
+  switch (Sk.kind) {
+    case 'phys': case 'mag': case 'steal': {
+      const hits = Sk.hits || 1;
+      for (let i = 0; i < hits; i++) {
+        let tl = targets;
+        if (Sk.rand) { const pool = a.isFoe ? alive(S.allies) : alive(S.foes); if (!pool.length) break; tl = [pick(pool)]; }
+        for (const t of tl) {
+          if (t.hp <= 0) continue;
+          const r = calcDamage(a, t, Sk);
+          if (r.miss) { pop(t.el, '落空', 'miss'); sfx('miss'); continue; }
+          hurt(t, r.dmg, a);
+          pop(t.el, (r.crit ? '暴擊 ' : '') + r.dmg, r.crit ? 'crit' : '');
+          if (r.crit) sfx('crit');
+          if (Sk.st && t.hp > 0) applyStatus(t, Sk.st);
+          if (Sk.kind === 'steal' && t.isFoe) await steal(a, t);
+          if (Sk.buff && Sk.kind !== 'debuff') {/* none */}
+        }
+        if (hits > 1) await delay(230);
+      }
+      if (Sk.self) { const d = Math.round(stat(a, 'mhp') * Sk.self); a.hp = Math.max(1, a.hp - d); pop(a.el, '-' + d); }
+      break;
+    }
+    case 'heal': {
+      for (const t of targets) {
+        const amt = Math.round(Sk.power * (stat(a, 'int') * 3 + stat(a, 'mhp') * 0.08 + 20) * rnd(0.95, 1.05));
+        const mhp = stat(t, 'mhp'); const before = t.hp; t.hp = Math.min(mhp, t.hp + amt);
+        if (Sk.cure) t.st = {};
+        pop(t.el, '+' + (t.hp - before), 'heal');
+        if (Sk.buff) addBuffs(t, Sk.buff, Sk.turns);
+      }
+      flash('healf'); break;
+    }
+    case 'revive': {
+      for (const t of targets) { t.hp = Math.max(1, Math.round(stat(t, 'mhp') * Sk.power)); t.st = {}; pop(t.el, '復活', 'heal'); }
+      break;
+    }
+    case 'buff': {
+      for (const t of targets) { addBuffs(t, Sk.buff, Sk.turns); if (Sk.taunt) t.st.taunt = Sk.turns; pop(t.el, '強化', 'mp'); }
+      break;
+    }
+    case 'debuff': {
+      for (const t of targets) {
+        if (Sk.buff) addBuffs(t, Sk.buff, Sk.turns);
+        if (Sk.st) applyStatus(t, Sk.st, true);
+        pop(t.el, Sk.buff ? '弱化' : '', 'miss');
+      }
+      break;
+    }
+  }
+  // 頭目狂暴
+  for (const f of S.foes) if (f.enrage && !f.enraged && f.hp > 0 && f.hp < f.mhp * f.enrage[0]) {
+    f.enraged = true; await delay(300); showBanner('狂暴'); log(f.enrage[1]); sfx(f.kind === 'beast' ? 'roar' : 'gong'); flash('redf'); await delay(1100);
+  }
+  await delay(act.sk === 'attack' ? 420 : 620);
+}
+
+function addBuffs(t, buff, turns = 3) {
+  for (const [k, m] of Object.entries(buff)) {
+    t.buffs = t.buffs.filter(b => !(b.stat === k && (b.mult > 1) === (m > 1)));
+    t.buffs.push({ stat: k, mult: m, turns: turns + 1 });
+  }
+}
+function applyStatus(t, [id, chance, turns], show) {
+  if (!t.isFoe && id === 'poison' && t.hero.eq.c && ITEMS[t.hero.eq.c].immune === 'poison') return;
+  let c = chance; if (t.boss) c *= (id === 'stun' || id === 'sleep') ? 0.35 : 0.6;
+  if (Math.random() < c) { t.st[id] = Math.max(t.st[id] || 0, turns); if (show) pop(t.el, STATUS[id].name, 'miss'); }
+}
+function calcDamage(a, t, Sk) {
+  const acc = Sk.acc || 0.95;
+  const eva = (0.03 + stat(t, 'luk') * 0.0015) * evaMult(t) + (evaMult(t) > 1 ? 0.12 * (evaMult(t) - 1) * 2 : 0);
+  if (acc < 9 && Math.random() > acc - eva) return { miss: true };
+  let A, D;
+  if (Sk.kind === 'mag') { A = stat(a, 'int') * 1.25 + stat(a, 'atk') * 0.15; D = stat(t, 'int') * 0.6 + stat(t, 'def') * 0.35; }
+  else { A = stat(a, 'atk'); D = stat(t, 'def'); }
+  let dmg = (Sk.power || 1) * A * A / (A + D) * rnd(0.9, 1.1);
+  if (Sk.vs && t.kind === Sk.vs[0]) dmg *= Sk.vs[1];
+  const critC = 0.05 + stat(a, 'luk') * 0.004 + (Sk.crit || 0);
+  const crit = Math.random() < critC; if (crit) dmg *= 1.6;
+  if (t.defending) dmg *= 0.5;
+  return { dmg: Math.max(1, Math.round(dmg)), crit };
+}
+function hurt(t, d, src) {
+  t.hp = Math.max(0, t.hp - d);
+  if (t.st.sleep && Math.random() < 0.5) t.st.sleep = 0;
+  if (t.hp <= 0) { log(`${t.name} 倒下了！`); if (t.isFoe) G.s.kills++; }
+}
+async function steal(a, t) {
+  if (t.stolen) return; t.stolen = true;
+  if (t.drop && Math.random() < 0.6) { give(t.drop[0], 1); pop(a.el, '偷得' + ITEMS[t.drop[0]].name, 'heal'); }
+  else { const g = 10 + t.lv * 6; G.s.gold += g; pop(a.el, `偷得${g}兩`, 'heal'); }
+  sfx('item'); await delay(300);
+}
+
+async function victory(foes, allies) {
+  G.s.battles++;
+  sfx('victory');
+  const exp = foes.reduce((s, f) => s + f.exp, 0), gold = foes.reduce((s, f) => s + (f.gold || 0), 0);
+  const drops = [];
+  for (const f of foes) if (f.drop && Math.random() < f.drop[1]) { give(f.drop[0], 1); drops.push(ITEMS[f.drop[0]].name); }
+  G.s.gold += gold;
+  const msgs = [];
+  const front = allies.map(a => a.hero.id);
+  for (const hero of activeParty()) {
+    if (hero.hp <= 0) continue;
+    msgs.push(...gainExp(hero, front.includes(hero.id) ? exp : Math.floor(exp / 2)));
+  }
+  if (msgs.some(m => m.includes('升到'))) sfx('levelup');
+  await showResult('勝利', [`獲得經驗 ${exp}`, `獲得銀兩 ${gold}`, drops.length ? `戰利品：${drops.join('、')}` : null, ...msgs], [['繼續', 'ok']]);
+}
+async function defeat(opts) {
+  sfx('defeat');
+  if (opts.noLose) { await showResult('敗北', ['寡不敵眾……'], [['繼續', 'ok']]); return 'lose'; }
+  const r = await showResult('勝敗乃兵家常事', ['全隊倒下了。要重新挑戰嗎？', '（重新挑戰會回到戰鬥開始前的狀態）'], [['重新挑戰', 'retry'], ['放棄', 'lose']]);
+  return r;
+}
+function showResult(title, lines, btns) {
+  return new Promise(res => {
+    const card = h('div', { class: 'card' }, h('h2', null, title), ...lines.filter(Boolean).map(l => h('p', null, l)),
+      h('div', { style: 'display:flex;gap:10px;justify-content:center;margin-top:12px;flex-wrap:wrap' },
+        ...btns.map(([t, v]) => h('button', { class: 'pbtn', style: 'min-width:9em;padding:0 16px', onclick: () => { sfx('click'); wrap.remove(); res(v); } }, t))));
+    const wrap = h('div', { class: 'b-res' }, card);
+    S.el.root.append(wrap);
+    const key = e => { if (e.key === 'Enter') { window.removeEventListener('keydown', key); card.querySelector('button').click(); } };
+    setTimeout(() => window.addEventListener('keydown', key), 300);
+  });
+}
