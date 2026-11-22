@@ -37,44 +37,6 @@ def bbox_crop(im, pad=8):
     x0, x1, y0, y1 = max(0, xs.min()-pad), min(im.width, xs.max()+pad), max(0, ys.min()-pad), min(im.height, ys.max()+pad)
     return im.crop((x0, y0, x1, y1))
 
-FACE = {  # (cx, cy, size) in source pixels, hand-picked after review
- 'p_linchong':(330,230,300),'p_luzhishen':(365,170,300),'p_wusong':(420,200,300),'p_chaogai':(375,200,300),
- 'p_wuyong':(370,220,300),'p_gongsunsheng':(460,270,280),'p_ruanxiaoqi':(380,260,300),'p_liutang':(370,250,320),
- 'p_yangzhi':(400,280,320),'p_songjiang':(365,230,300),'p_likui':(380,300,330),'p_huarong':(330,260,300),
- 'p_sunerniang':(380,220,300),'p_zhangshun':(370,230,300),'p_shiqian':(350,230,280),'b_luqian':(340,330,330),
- 'b_ximenqing':(430,210,300),'b_jiangmenshen':(390,250,300),'b_wanglun':(370,250,300),'b_huangwenbing':(380,320,320),
- 'b_zhubiao':(400,190,280),'b_luantingyu':(385,210,300),'b_denglong':(400,170,300),'b_commander':(390,260,330),
- 'n_elder':(380,250,320),'n_waiter':(370,230,300),'n_woman':(390,260,300),'b_tiger':(535,380,520)}
-
-def face_token(cut, name, size=128):
-    cx, cy, s = FACE[name]
-    face = Image.new('RGBA', cut.size, (236, 226, 200, 255)); face.alpha_composite(cut)
-    x0 = max(0, min(cut.width - s, cx - s//2)); y0 = max(0, min(cut.height - s, cy - s//2))
-    c = face.crop((x0, y0, x0+s, y0+s)).resize((size, size), Image.LANCZOS)
-    from PIL import ImageDraw
-    m = Image.new('L', (size*4, size*4), 0); ImageDraw.Draw(m).ellipse((6, 6, size*4-6, size*4-6), fill=255)
-    c.putalpha(m.resize((size, size), Image.LANCZOS)); return c
-
-def token(cut, size=128):
-    """circular face token from a portrait cutout"""
-    al = np.asarray(cut.split()[-1])
-    W, H = cut.size
-    ys, xs = np.where(al > 40)
-    top = ys.min()
-    band = (ys < top + int(H*0.18))
-    cx = int(np.median(xs[band])) if band.any() else W//2
-    s = int(W*0.46)
-    x0 = max(0, min(W-s, cx - s//2)); y0 = max(0, top - int(s*0.04))
-    face = Image.new('RGBA', cut.size, (236, 226, 200, 255))
-    face.alpha_composite(cut)
-    c = face.crop((x0, y0, x0+s, y0+s)).resize((size, size), Image.LANCZOS)
-    m = Image.new('L', (size*4, size*4), 0)
-    from PIL import ImageDraw
-    ImageDraw.Draw(m).ellipse((6, 6, size*4-6, size*4-6), fill=255)
-    m = m.resize((size, size), Image.LANCZOS)
-    c.putalpha(m)
-    return c
-
 def clean(im, frac=0.06):
     """drop small specks (ink splatter, dust) not attached to the main figure"""
     a = np.asarray(im).copy(); m = a[..., 3] > 60
@@ -142,7 +104,6 @@ def main():
         if kind == 'spr' or kind == 'intro' or name == 'title_bg': continue  # tools/process_sprites.py, media/
         if kind == 'p':
             c = cutout(im); save(c.resize((432, 576), Image.LANCZOS), name, 80)
-            (face_token(c, name) if name in FACE else token(c)).save(os.path.join(OUT, 'tok', name + '.webp'), 'WEBP', quality=82, method=6)
         elif kind in ('b', 'n'):
             c = cutout(im)
             save(c.resize((432, 576), Image.LANCZOS) if c.height > c.width else fit(bbox_crop(c), w=512), name, 80)
