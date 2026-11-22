@@ -1,5 +1,5 @@
 # 自動遊玩測試：python3 tests/play.py [BASE_URL] [OUT_DIR] [devices...]
-# 六種尺寸：標題 → 新遊戲 → 第一回對話 → 岳廟戰鬥 → 選單（隊伍/裝備）→ 存檔 → 重新載入 → 繼續
+# 六種尺寸：片頭（跳過）→ 標題 → 新遊戲 → 第一回對話 → 岳廟戰鬥 → 選單（隊伍/裝備）→ 存檔 → 重新載入 → 繼續
 # 檢查：0 console error、0 pageerror、無外部網域請求、無水平捲動、主要文字 >= 16px、存檔後重新載入位置一致
 import asyncio, sys, os, json
 from urllib.parse import urlparse
@@ -40,7 +40,16 @@ async def run(p, b, dev):
     ok = lambda k, v: res.__setitem__(k, v)
     r = await pg.goto(BASE); ok("status", r.status)
     await pg.evaluate("localStorage.clear()"); await pg.reload()
-    await pg.wait_for_selector("#t-new", timeout=30000); await pg.wait_for_timeout(1200)
+    # 片頭：首次進入自動播放，右上「跳過」
+    await pg.wait_for_selector("#intro:not([hidden]) .iskip", timeout=30000); await pg.wait_for_timeout(2600)
+    ok("intro_time", await pg.evaluate("(document.querySelector('#intro video')||{}).currentTime||0"))
+    ok("intro_font", await pg.evaluate(MINFONT, "#intro"))
+    await pg.screenshot(path=f"{OUT}/{dev}_0_intro.png")
+    if T: await pg.tap("#intro .iskip")
+    else: await pg.click("#intro .iskip")
+    await pg.wait_for_function("document.querySelector('#intro').hidden", timeout=5000); ok("intro_skipped", True)
+    await pg.wait_for_selector("#t-new", timeout=30000); await pg.wait_for_timeout(2000)
+    ok("title_video", await pg.evaluate("(()=>{const v=document.querySelector('#title video');return v?[+v.currentTime.toFixed(2),v.paused]:null})()"))
     ok("title_font", await pg.evaluate(MINFONT, "#title"))
     await pg.screenshot(path=f"{OUT}/{dev}_1_title.png")
     # 新遊戲（真實點擊/觸控）
@@ -55,6 +64,7 @@ async def run(p, b, dev):
     ok("dialog_font", await pg.evaluate(MINFONT, "#dialog"))
     await pg.screenshot(path=f"{OUT}/{dev}_2_dialog.png")
     ok("drive1", await pg.evaluate(DRIVE, 400))
+    await pg.wait_for_timeout(500); await pg.screenshot(path=f"{OUT}/{dev}_2b_map.png")
     # 實際輸入移動一步（方向鍵 / 觸控方向盤）
     p0 = await pg.evaluate("[__rpg.M.px,__rpg.M.py]")
     if T: await pg.tap("#dpad .dr")
@@ -104,13 +114,14 @@ async def run(p, b, dev):
     await ctx.close()
     fails = []
     if res["status"] != 200: fails.append("status")
+    if not res.get("intro_skipped"): fails.append("intro skip")
     if errs: fails.append("console errors")
     if foreign: fails.append("foreign requests")
     if not res["moved"]: fails.append("input move")
     if not res["battle"] or not res["yuemiao_done"]: fails.append("battle")
     if not saved or saved[1:] != res["reloaded"][1:]: fails.append("save/reload")
     if res["hscroll"]: fails.append("horizontal scroll")
-    for k in ("title_font", "dialog_font", "battle_font", "menu_font"):
+    for k in ("intro_font", "title_font", "dialog_font", "battle_font", "menu_font"):
         if res[k][0] < 15.5: fails.append(f"{k} {res[k]}")
     res["fails"] = fails
     return res

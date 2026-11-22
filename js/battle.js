@@ -87,21 +87,28 @@ function runBattle(foes, opts) {
     S = B.cur = { foes, allies, opts, round: 0, log: [], picking: null, over: false, auto: !!G.s.settings.auto };
     const logEl = h('div', { class: 'b-log' }, '');
     const foeEl = h('div', { class: 'b-foes' });
+    const heroEl = h('div', { class: 'b-heroes' + (allies.length > 2 ? ' n' + allies.length : '') });
+    const stage = h('div', { class: 'b-stage' }, foeEl, heroEl);
     const partyEl = h('div', { class: 'b-party' });
     const cmdEl = h('div', { class: 'b-cmds' });
     const fxEl = h('div', { class: 'fx' });
     const banner = h('div', { class: 'banner' });
-    root.append(logEl, foeEl, partyEl, cmdEl, fxEl, banner);
+    root.append(logEl, stage, partyEl, cmdEl, fxEl, banner);
     S.el = { logEl, foeEl, partyEl, cmdEl, fxEl, banner, root };
     for (const f of foes) {
-      const im = h('img', { src: url(f.img), alt: f.name, style: f.tint ? `filter:${f.tint} drop-shadow(0 6px 8px rgba(0,0,0,.7))` : '' });
-      f.el = h('div', { class: 'foe' + (f.big || (f.boss && foes.length === 1) ? ' big' : '') }, h('div', { class: 'st' }), im, h('div', { class: 'fn' }, f.name + (f.boss ? '' : ` Lv${f.lv}`)), h('div', { class: 'bar' }, h('i')));
+      // 好漢當頭目時用全身戰鬥立繪（鏡像，面向我方）
+      const hb = f.img.startsWith('p_'), fimg = hb ? 'bf_' + f.img.slice(2) : f.img;
+      const im = h('img', { src: url(fimg), alt: f.name, style: f.tint ? `filter:${f.tint} drop-shadow(0 6px 8px rgba(0,0,0,.7))` : '' });
+      f.el = h('div', { class: 'foe' + (hb ? ' mirror' : '') + (f.big || (f.boss && foes.length === 1) ? ' big' : '') }, h('div', { class: 'st' }), im, h('div', { class: 'fn' }, f.name + (f.boss ? '' : ` Lv${f.lv}`)), h('div', { class: 'bar' }, h('i')));
       f.el.addEventListener('click', () => S.picking && S.picking('foe', f));
       foeEl.append(f.el);
     }
     for (const a of allies) {
       const id = a.hero.id;
-      a.el = h('div', { class: 'pc' }, h('img', { src: url(HEROES[id].img, true), alt: '' }), h('div', { class: 'pn' }, HEROES[id].name),
+      a.hf = h('div', { class: 'hf' }, h('img', { src: url('bf_' + id), alt: HEROES[id].name }));
+      a.hf.addEventListener('click', () => S.picking && S.picking('ally', a));
+      heroEl.append(a.hf);
+      a.el = h('div', { class: 'pc' }, h('img', { src: url(HEROES[id].img), alt: '' }), h('div', { class: 'pn' }, HEROES[id].name),
         h('div', { class: 'nums' }), h('div', { class: 'bar' }, h('i')), h('div', { class: 'pst' }));
       a.el.addEventListener('click', () => S.picking && S.picking('ally', a));
       partyEl.append(a.el);
@@ -175,6 +182,7 @@ function refresh() {
     a.el.querySelector('.nums').textContent = `體${Math.max(0, a.hero.hp)}/${m.hp} 氣${a.hero.mp}`;
     a.el.querySelector('.bar i').style.width = Math.max(0, a.hero.hp / m.hp * 100) + '%';
     a.el.classList.toggle('dead', a.hero.hp <= 0);
+    a.hf.classList.toggle('dead', a.hero.hp <= 0); a.hf.classList.toggle('turn', a.el.classList.contains('turn'));
     const st = a.el.querySelector('.pst'); st.innerHTML = '';
     for (const k of Object.keys(a.st)) if (a.st[k] > 0 && STATUS[k]) st.append(h('span', { style: `background:${STATUS[k].color}` }, STATUS[k].name));
     if (a.buffs.length) st.append(h('span', { style: 'background:#2a6' }, '強化'));
@@ -184,6 +192,8 @@ function refresh() {
 function pop(el, text, cls = '') {
   const p = h('div', { class: 'pop ' + cls }, text); el.append(p); setTimeout(() => p.remove(), 1000);
   el.classList.remove('hit'); void el.offsetWidth; if (cls !== 'heal' && cls !== 'mp') el.classList.add('hit');
+  const hf = S && S.allies.find(x => x.el === el)?.hf;
+  if (hf) { const q = h('div', { class: 'pop ' + cls }, text); hf.append(q); setTimeout(() => q.remove(), 1000); hf.classList.remove('hit'); void hf.offsetWidth; if (cls !== 'heal' && cls !== 'mp') hf.classList.add('hit'); }
 }
 function flash(cls) { const f = S.el.fxEl; f.className = 'fx'; void f.offsetWidth; f.className = 'fx ' + cls; }
 function showBanner(t) { S.el.banner.innerHTML = ''; S.el.banner.append(h('span', null, t)); }
@@ -249,14 +259,14 @@ function waitCmd(a) {
       if (!pool.length) { log('沒有可選擇的對象。'); main(); return; }
       if (pool.length === 1 && tg === 'enemy') return cb(pool);
       log(tg === 'enemy' ? '請點選要攻擊的敵人。' : '請點選對象。');
-      for (const p of pool) p.el.classList.add('pick');
+      for (const p of pool) { p.el.classList.add('pick'); p.hf && p.hf.classList.add('pick'); }
       S.picking = (kind, x) => { if (pool.includes(x)) { sfx('click'); cb([x]); } };
       el.append(back());
     };
     main();
   });
 }
-function clearPick() { if (!S) return; for (const x of [...S.foes, ...S.allies]) x.el.classList.remove('pick'); }
+function clearPick() { if (!S) return; for (const x of [...S.foes, ...S.allies]) { x.el.classList.remove('pick'); x.hf && x.hf.classList.remove('pick'); } }
 
 // ───── AI ─────
 function heroAI(a) {
@@ -329,6 +339,7 @@ async function perform(a, act) {
   if (act.sk !== 'attack') { showBanner(Sk.name); log(`${a.name}：「${Sk.name}」！`); }
   else log(`${a.name} 發動攻擊。`);
   if (a.isFoe) { a.el.classList.add('act'); setTimeout(() => a.el && a.el.classList.remove('act'), 400); }
+  else if (a.hf) { a.hf.classList.add('act'); setTimeout(() => a.hf && a.hf.classList.remove('act'), 450); }
   await delay(act.sk === 'attack' ? 260 : 520);
   const fxs = { thunder: 'thunder', magic: 'thunder', fire: 'fire', water: 'water', arrow: 'arrow', heal: 'heal', buff: 'buff', debuff: 'debuff', big: 'crit', claw: 'hit', sweep: 'slash', multi: 'hit', chain: 'hit', thrust: 'slash', slash: 'slash' };
   sfx(fxs[Sk.fx] || 'hit');

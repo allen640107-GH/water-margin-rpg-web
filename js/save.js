@@ -9,7 +9,7 @@ const key = slot => PREFIX + slot;
 
 function store() { try { return window.localStorage; } catch (e) { return null; } }
 
-// v0（開發早期原型格式）→ v1
+// v0（開發早期原型格式）→ v1 → v2
 // v0: { chapter, mapId, pos:[x,y], money, members:[{id,level,exp}], items:[[id,n]], flags:[name...], time }
 const MIGRATIONS = {
   0: (o) => {
@@ -28,6 +28,16 @@ const MIGRATIONS = {
     if (!s.party.length) { s.roster.linchong = newHero('linchong', 1); s.party = ['linchong']; }
     for (const [id, n] of o.items || []) s.inv[id] = (s.inv[id] || 0) + n;
     for (const f of o.flags || []) s.flags[f] = true;
+    return s;
+  },
+  // v1（1.0.0）→ v2（2.0.0）：資料結構相容；新渲染器需要合法的面向（0–3），並記錄遷移來源
+  1: (o) => {
+    const s = { ...o, v: 2 };
+    s.dir = [0, 1, 2, 3].includes(o.dir) ? o.dir : 2;
+    s.steps = o.steps || 0;
+    s.mapState = o.mapState || {};
+    s.migratedFrom = o.migratedFrom ?? 1;
+    s.migrations = [...(o.migrations || []), { from: 1, to: 2, at: Date.now() }];
     return s;
   },
 };

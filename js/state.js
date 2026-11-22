@@ -2,7 +2,7 @@ import { HEROES } from './data/heroes.js';
 import { ITEMS } from './data/items.js';
 import { SKILLS } from './data/skills.js';
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2; // v2.0.0：全身角色／新地圖渲染（存檔欄位相容，見 save.js 遷移）
 export const STATS = ['hp', 'mp', 'atk', 'def', 'int', 'spd', 'luk'];
 export const STAT_NAME = { hp: '體力', mp: '內力', atk: '攻擊', def: '防禦', int: '智謀', spd: '身法', luk: '運氣', eva: '閃避' };
 

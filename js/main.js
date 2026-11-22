@@ -13,7 +13,7 @@ import { ITEMS } from './data/items.js';
 import { HEROES } from './data/heroes.js';
 import { BOSSES } from './data/enemies.js';
 
-const VERSION = '1.0.0';
+const VERSION = '2.0.0';
 let scriptDepth = 0, inGame = false, lastPos = null;
 
 // ───── 劇本 API ─────
@@ -218,7 +218,18 @@ function showTitle() {
   for (const id of ['#hud', '#pads', '#dialog', '#choices', '#battle', '#menu', '#panel', '#caption', '#cg']) $(id).hidden = true;
   UI.busy = 0; scriptDepth = 0;
   const t = $('#title'); t.innerHTML = ''; t.hidden = false;
-  t.style.backgroundImage = `url(${url('bg_title')})`;
+  t.style.backgroundImage = `url(media/title_poster.webp)`;
+  // 動態標題：循環影片（水波、旗、霧）＋ CSS 飄霧、迎風大旗、行走的好漢剪影；影片失敗時留靜圖
+  const vid = h('video', { class: 'tvid', muted: '', loop: '', playsinline: '', autoplay: '', preload: 'auto', poster: 'media/title_poster.webp', 'aria-hidden': 'true' });
+  vid.muted = true; vid.defaultMuted = true; vid.playsInline = true;
+  vid.addEventListener('error', () => vid.remove()); vid.src = 'media/title.mp4';
+  const p = vid.play(); if (p && p.catch) p.catch(() => {});
+  const walker = (id, k) => h('div', { class: 'tw tw' + k, style: `background-image:url(img/spr/${id}.webp)` });
+  t.append(vid, h('div', { class: 'tfx' },
+    h('div', { class: 'mist m1' }), h('div', { class: 'mist m2' }),
+    h('div', { class: 'tflag f1' }, h('i'), h('b', null, '替天行道')), h('div', { class: 'tflag f2' }, h('i'), h('b', null, '忠義')),
+    h('div', { class: 'twalk' }, walker('linchong', 1), walker('luzhishen', 2), walker('wusong', 3)),
+    h('div', { class: 'mist m3' })));
   const auto = Save.readSlot('auto');
   const anyOk = Save.SLOTS.some(s => Save.readSlot(s).status === 'ok');
   t.append(
@@ -231,9 +242,46 @@ function showTitle() {
         newStart();
       } }, '新的旅程'),
       h('button', { id: 't-load', disabled: !anyOk, onclick: () => { resume(); loadPanel(); } }, '讀取存檔'),
+      h('button', { id: 't-intro', onclick: () => { resume(); playIntro(true); } }, '觀看片頭'),
       h('button', { id: 't-mute', onclick: () => { setMuted(!isMuted()); resume(); showTitle(); } }, isMuted() ? '音樂：關' : '音樂：開')),
     h('div', { class: 'foot' }, `v${VERSION}・點擊地圖移動・水墨插畫由 Grok Imagine 生成`));
   playMusic('title');
+}
+
+// ───── 片頭動畫：可跳過（右上「跳過」），靜音自動播放，點畫面開聲音 ─────
+const INTRO_CAPS = [
+  { at: 0, cap: '風雪山神廟', sub: '八十萬禁軍教頭林沖，被逼上梁山' },
+  { at: 4.5, cap: '景陽岡', sub: '武松赤手空拳，打死弔睛白額大蟲' },
+  { at: 9.1, cap: '替天行道', sub: '天罡地煞，聚義梁山泊' },
+];
+function playIntro(fromTitle = false) {
+  return new Promise(resolve => {
+    const ov = $('#intro'); ov.innerHTML = ''; ov.hidden = false;
+    let done = false;
+    const v = h('video', { class: 'ivid', playsinline: '', autoplay: '', preload: 'auto', poster: 'media/intro_poster.webp' });
+    v.muted = true; v.playsInline = true;
+    const cap = h('div', { class: 'icap' }), hint = h('div', { class: 'ihint' }, '點擊畫面開啟聲音');
+    const finish = () => {
+      if (done) return; done = true;
+      try { localStorage.setItem('shuihu.introSeen', '1'); } catch (e) {}
+      ov.classList.add('out'); v.pause();
+      setTimeout(() => { ov.hidden = true; ov.classList.remove('out'); ov.innerHTML = ''; resolve(); if (!$('#title').hidden) playMusic('title'); }, 450);
+    };
+    const skip = h('button', { class: 'iskip', onclick: e => { e.stopPropagation(); finish(); } }, '跳過');
+    let last = -1;
+    v.addEventListener('timeupdate', () => {
+      let k = 0; INTRO_CAPS.forEach((c, i) => { if (v.currentTime >= c.at) k = i; });
+      if (k !== last) { last = k; cap.innerHTML = ''; cap.append(h('b', null, INTRO_CAPS[k].cap), h('span', null, INTRO_CAPS[k].sub)); cap.classList.remove('in'); void cap.offsetWidth; cap.classList.add('in'); }
+    });
+    v.addEventListener('ended', finish);
+    v.addEventListener('error', finish);
+    ov.onclick = () => { if (v.muted) { v.muted = false; hint.remove(); playMusic(null); const q = v.play(); if (q && q.catch) q.catch(() => {}); } };
+    ov.append(v, cap, hint, skip);
+    if (fromTitle) playMusic(null);
+    v.src = 'media/intro.mp4';
+    const q = v.play(); if (q && q.catch) q.catch(() => {});
+    setTimeout(() => { if (!done && v.currentTime === 0 && v.paused) finish(); }, 9000); // 無法播放時直接進標題
+  });
 }
 
 // ───── 輸入 ─────
@@ -313,9 +361,11 @@ async function boot() {
   onAnyLoad(() => { M.dirty = true; });
   bindInput();
   Save.migrateAll();
-  await preload(['bg_title', 'ui_paper']);
+  await preload(['ui_paper']);
   $('#boot').remove();
+  let seen = false; try { seen = localStorage.getItem('shuihu.introSeen') === '1'; } catch (e) {}
   showTitle();
+  if (!seen) playIntro();
   requestAnimationFrame(loop);
 }
 boot();

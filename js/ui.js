@@ -71,7 +71,7 @@ export async function fade(fn) {
 export function setCG(name) { const c = $('#cg'); if (!name) { c.hidden = true; return; } c.style.backgroundImage = `url(${url(name)})`; c.hidden = false; }
 
 // ───────── 共用元件 ─────────
-const tok = id => h('img', { class: 'tok', src: url(HEROES[id].img, true), alt: '' });
+const tok = id => h('img', { class: 'tok', src: url(HEROES[id].img), alt: '' });
 function bar(cur, max, cls = '') { return h('div', { class: 'bar ' + cls }, h('i', { style: `width:${Math.max(0, Math.min(100, cur / max * 100))}%` })); }
 function itemStatText(it) {
   const parts = [];

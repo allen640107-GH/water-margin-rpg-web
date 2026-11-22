@@ -18,7 +18,7 @@ async def main():
         pg = await ctx.new_page(); errs = []
         pg.on("console", lambda m: errs.append(m.type + ": " + m.text) if m.type in ("error", "warning") else None)
         pg.on("pageerror", lambda e: errs.append("pageerror: " + str(e)))
-        await pg.goto("http://localhost:8765/"); await pg.evaluate("localStorage.clear()"); await pg.reload()
+        await pg.goto("http://localhost:8765/"); await pg.evaluate("localStorage.clear();localStorage.setItem('shuihu.introSeen','1')"); await pg.reload()
         await pg.wait_for_selector("#title button", timeout=20000); await pg.wait_for_timeout(800)
         await pg.screenshot(path=f"{OUT}/{D}_title.png")
         for i, js in enumerate(sys.argv[3:]):
