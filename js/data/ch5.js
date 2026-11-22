@@ -11,6 +11,7 @@ const quests = {
   q5_jiangzhou: { name: '刺配江州', desc: '宋江被刺配江州。在江州認識當地的好漢。' },
   q5_poem: { name: '潯陽樓', desc: '到潯陽樓上吃酒，看看江景。' },
   q5_rescue: { name: '劫法場', desc: '宋江、戴宗將被斬首！梁山好漢殺入江州法場救人。' },
+  q5_shan: { name: '清風山', desc: '翻過清風山往清風寨去。山上有強人出沒。' },
   s5_lamp: { name: '走失的孩子', desc: '元宵燈會上有個孩子走失了，替他娘找回來。', side: true },
   s5_market: { name: '江州魚市', desc: '江州魚市被惡霸把持，漁民苦不堪言。', side: true },
 };
@@ -22,10 +23,9 @@ const scripts = {
 @heal
 @cg bg_qingfeng
 |鄆城縣押司宋江，人稱「及時雨」。他因殺了逼迫勒索的閻婆惜，逃離家鄉。
-|一路上，他在清風山被燕順等人所擒，又因說出名號而被奉為上賓；還從山寨中救下了一位被擄的婦人——清風寨知寨劉高之妻。
-|如今，他來到清風寨，投奔舊友——「小李廣」花榮。
+|他要往清風寨投奔舊友——「小李廣」花榮。路上，須經過強人出沒的清風山。
 @cg off
-@goto qingfeng start`,
+@goto qingfengshan start`,
   ch5_end: `
 @party songjiang,linchong,likui,wuyong+
 @heal
@@ -47,6 +47,86 @@ const scripts = {
 };
 
 const maps = {
+  qingfengshan: {
+    name: '清風山', ch: 5, bg: 'bg_mountainfort', battleBg: 'bg_yezhulin', bgm: 'field', ground: ',',
+    grid: `
+##########################
+#^^^^^^^^^^RRRRRR^^^^^^^^#
+#^^TT,,,,,,RR+RRR,,,,TT^^#
+#^T,,,,,,,,,,Y,,,,,,,,,T^#
+#^,,,A,,,,,,,,,,,,,,B,,,^#
+#^^^,,,,,,^^^^^^,,,,,,^^^#
+#^^^^,,,,,^^^^^^,,,,,^^^^#
+#^^FFF,,,,,,,,,,,,,FFF,^^#
+#^FFFF,,G,,,FFF,,,,FFFK^^#
+#^FFF,,,,,,FFFFF,,,,,,,^^#
+#^FF,,,T,,,,FFF,,,H,,,F^^#
+#^F,,,,,,,,,,,,,,,,,,,FF^#
+#^FF,,J,,,,FFFF,,,,,,,FF^#
+#^FFF,,,,,FFFFFF,,,Z,,FF^#
+#^FFFF,,,,,,X,,,,,,,,FFF^#
+#^FFFFFFF,,,,,,,,,FFFFFF^#
+#^^^^^^^^^^E1^^^^^^^^^^^^#
+##########################`,
+    marks: {
+      '1': entry('start'),
+      E: exit('qingfeng', 'start', '清風寨', { cond: 'flag:qfs_wang', deny: '@if flag:qfs_caught\n燕順|哥哥別急著走，再住幾日！（山寨後堂似乎有什麼動靜。）\n@else\n|來時的路。清風寨在山的另一頭。\n@end' }),
+      X: trig(`
+@if !flag:qfs_caught
+|宋江走到半山，腳下忽然被一條絆腳索絆倒——林子裡跳出十幾個嘍囉！
+嘍囉|拿住了！拿住了！又是一頭肥羊！
+@battle bandit@14+bandit@13 nolose bg=bg_yezhulin
+|宋江寡不敵眾，被嘍囉們綁了，押上山寨。
+@flag qfs_caught
+@heal
+燕順|（大寨裡，三個頭領坐在交椅上）綁來的這個黑漢子，挖了心肝做醒酒湯！
+宋江|（長嘆）可惜宋江死在這裡！
+燕順|……等等！你說你叫什麼？
+宋江|在下鄆城宋江。
+燕順|莫不是山東「及時雨」宋公明？！
+宋江|正是。
+|燕順大驚，奪過嘍囉手中的刀，親自割斷繩索，扶宋江坐在正中交椅上，納頭便拜。
+燕順|小弟燕順，人稱「錦毛虎」。這兩位是王英、鄭天壽。我們只恨不能早識哥哥！
+|宋江在清風山住了幾日。山寨中的嘍囉，有的不服，有的佩服——山裡也還有些野獸和不服管束的散兵遊勇。
+@quest q5_shan
+@end`),
+      A: npc('燕順', 'e_bandit', `
+@if flag:qfs_wang
+燕順|哥哥此去清風寨，若有難處，派人送個信來，清風山兄弟立刻下山！
+@else
+燕順|哥哥在山寨多住幾日！咱們兄弟好好喝幾杯！
+燕順|只是那王英兄弟……他好色，前日又下山去搶什麼人了。
+@end`, { show: 'flag:qfs_caught', tint: 'hue-rotate(30deg) saturate(1.5)' }),
+      B: npc('鄭天壽', 'e_thug', `鄭天壽|小弟鄭天壽，人稱「白面郎君」。山後的林子裡有幾隻豹子，常來偷山寨的羊。`, { show: 'flag:qfs_caught', tint: 'brightness(1.2)' }),
+      Y: trig(`
+@if flag:qfs_caught & !flag:qfs_wang
+|山寨後堂傳來婦人的哭聲。
+王英|（矮腳虎王英正拉著一個婦人）哈哈，這是清風寨知寨的老婆，我搶來做壓寨夫人！
+宋江|王英兄弟！好漢不可貪女色。清風寨的知寨與我的朋友花榮是同僚，看在宋江的面上，放她回去吧！
+王英|這……
+燕順|王英，哥哥都開口了！
+王英|唉……罷了罷了，聽哥哥的。
+劉高|（那婦人連聲道謝，被轎子抬下山去了。）
+|——宋江救了劉高之妻。他卻不知道，此舉將為自己招來大禍。
+@flag qfs_wang
+@quest q5_shan done
+燕順|哥哥要往清風寨，下山的路在南邊。路上小心！
+@end`, { once: false }),
+      G: foe('wolf@14', { show: 'flag:qfs_caught' }),
+      H: foe('leopard@14', { name: '山豹', show: 'flag:qfs_caught' }),
+      J: foe('bandit@14', { name: '散兵遊勇', show: 'flag:qfs_caught' }),
+      Z: foe('boar@14', { show: 'flag:qfs_caught' }),
+      K: chest('sword2', 1),
+    },
+    intro: `
+|清風山。山高林密，人跡罕至。
+宋江|聽說這山上有強人……天色已晚，只得硬著頭皮過去了。`,
+    onEnter: `
+@if flag:qfs_wang
+|（下山往南，便是清風寨。）
+@end`,
+  },
+
   qingfeng: {
     name: '清風寨', ch: 5, bg: 'bg_qingfeng', bgm: 'town', ground: ',',
     grid: `

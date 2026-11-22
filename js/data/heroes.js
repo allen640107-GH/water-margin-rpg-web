@@ -49,7 +49,7 @@ export const HEROES = {
     eq: { w: 'treasure_blade', a: 'armor2', c: null },
     desc: '楊家將之後，三代將門。失陷花石綱、生辰綱，終落草二龍山。' },
   songjiang: { name: '宋江', title: '及時雨', star: '天魁星', img: 'p_songjiang', wtype: 'sword', role: '回復・號令',
-    base: { hp: 110, mp: 36, atk: 11, def: 9, int: 14, spd: 10, luk: 12 }, grow: { hp: 13, mp: 3.6, atk: 1.8, def: 1.5, int: 2.6, spd: 0.9, luk: 0.9 },
+    base: { hp: 110, mp: 36, atk: 11, def: 9, int: 14, spd: 10, luk: 12 }, grow: { hp: 13, mp: 3.6, atk: 2.4, def: 1.5, int: 2.6, spd: 0.9, luk: 0.9 },
     skills: [['sj_rain', 1], ['sj_command', 1], ['sj_virtue', 8], ['sj_banner', 16]],
     eq: { w: 'sword1', a: 'robe1', c: null },
     desc: '鄆城縣押司，仗義疏財，扶危濟困，江湖人稱「及時雨」。' },

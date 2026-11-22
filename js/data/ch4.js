@@ -12,10 +12,17 @@ const quests = {
   q4_baozhu: { name: '攻打寶珠寺', desc: '二龍山寶珠寺被鄧龍佔據，只有一條山路。打開三道山門，擊敗鄧龍。' },
   s4_cave: { name: '黑風洞', desc: '樵夫說梁山西邊的黑風洞裡藏有前朝寶物，但機關重重。', side: true },
   s4_arena: { name: '演武場', desc: '林沖在大寨演武場設下擂台。擊敗各路高手，可得稀世兵器。', side: true },
+  s4_drill: { name: '山寨操練', desc: '杜遷請頭領們下場，指點大寨裡三隊演練的嘍囉。', side: true },
+  s4_lew: { name: '蓼兒洼水寨', desc: '蓼兒洼藏著官府水軍。轉動水門絞盤，擊敗水軍統制。', side: true },
   s4_snake: { name: '洞中白蟒', desc: '二龍山後洞有一條白蟒傷人。', side: true },
 };
 
 const scripts = {
+  drill_chk: `
+@if flag:k:liangshan:7,2 & flag:k:liangshan:23,2 & flag:k:liangshan:20,11 & !flag:drill3
+@flag drill3
+|三隊嘍囉都操練完了。回去告訴杜遷吧。
+@end`,
   ch4_start: `
 @chapter 4
 @heal
@@ -87,18 +94,18 @@ const maps = {
     grid: `
 ##############################
 #^^^^^^^^^^RRRRRRRR^^^^^^^^^^#
-#^^TT,,,,,,RRRRRRRR,,,,,TT^^^#
+#^^TT,,X,,,RRRRRRRR,,,,YTT^^^#
 #^T,,,,,,,,RRR+RRRR,,,,,,,T^^#
 #^,,,,,,,,,,,,J,,,,,,,,,,,,,^#
 #^,,RRRR,,,,::2::,,,,,RRRR,,^#
 #^,,RR+R,,,,:,,,:,,,,,R+RR,,^#
 #^,,,A,,,,,,:,L,:,,,,,,B,,,,^#
-#^,,,,,,,,,,:,,,:,,,,,,,,,,,^#
+#^,,,,,,,U,,:,,,:,,,,,,,P,,,^#
 #^^,,,,,,,,,:::::,,,,,,,,,,^^#
 #^^^,,,K,,,,,,:,,,,,,,,G,,^^^#
-#^^^^,,,,,,,,,:,,,,,,,,,,^^^^#
+#^^^^,,,,,,,,,:,,,,,V,,,,^^^^#
 #^^^^^,,,,,,,,:,,,,,,,,,^^^^^#
-#^~~~~~~~,,,,,:,,,,,~~~~~~~~^#
+#^~~~~~~~,,,,,:,,,W,~~~~~~~~^#
 #^~~~~~~~,,,H,:,,,,,~~~~~~~~^#
 #^~~~~~~~~,,,,1,,,,~~~~~~~~~^#
 #~~~~~~~~~~~~=D=~~~~~~~~~~~~~#
@@ -153,6 +160,50 @@ const maps = {
 @end
 @end`),
       K: chest('pill', 2),
+      X: foe('bandit@16+bandit@16', { name: '演練嘍囉', show: 'flag:wl_done', post: `@run drill_chk` }),
+      Y: foe('armored@17+bandit@16', { name: '演練嘍囉', show: 'flag:wl_done', post: `@run drill_chk` }),
+      V: foe('archer@17+archer@17+bandit@16', { name: '演練嘍囉', show: 'flag:wl_done', post: `@run drill_chk` }),
+      U: npc('杜遷', 'e_bandit', `
+@if !flag:wl_done
+杜遷|新來的？規矩點，這是王頭領的山寨。
+@elif quest:s4_drill
+杜遷|頭領們親自下場操練，嘍囉們都長進了！
+@elif flag:drill3
+杜遷|三隊嘍囉都被頭領們打服了！這是山寨庫房裡的好東西，請收下！
+@give jade
+@gold 300
+@quest s4_drill done
+@else
+杜遷|晁天王上山後，嘍囉們要重新操練。頭領們能不能下場指點一番？大寨裡有三隊嘍囉在演練。
+@if !qactive:s4_drill
+@quest s4_drill
+@end
+@end`, { tint: 'sepia(.5) hue-rotate(200deg) saturate(1.8)' }),
+      P: npc('公孫勝', 'p_gongsunsheng', `
+@if flag:wl_done
+公孫勝|貧道夜觀天象，見罡星一百零八顆，聚於梁山之上。
+公孫勝|如今才聚了十餘位，往後的路還長著呢。
+公孫勝|頭領若遇強敵，不妨多備些藥材與好兵器。後勤那裡都有。
+@else
+公孫勝|這王倫……貧道看他氣數已盡。
+@end`, { show: 'flag:wl_done' }),
+      W: npc('阮小五', 'p_ruanxiaoqi', `
+@if !flag:wl_done
+阮小五|……
+@elif quest:s4_lew
+阮小五|蓼兒洼清淨了！咱們梁山的水寨，再也不怕官兵偷襲！
+@elif flag:lew_done
+阮小五|好！官軍水寨被端了！這是從他們船上繳來的寶貝！
+@give bow3
+@quest s4_lew done
+@else
+阮小五|我是阮小七的五哥阮小五。頭領，梁山西南的蓼兒洼裡，藏著一支官府水軍，常常偷襲咱們的漁船。
+阮小五|那裡水門重重，要轉動水門絞盤才能過去。從渡口搭船，在天下地圖上找「蓼兒洼」。
+@if !qactive:s4_lew
+@quest s4_lew
+@flag lew_known
+@end
+@end`, { tint: 'hue-rotate(20deg) saturate(1.2)', show: 'flag:wl_done' }),
       G: exit('yanwu', 'start', '演武場', { cond: 'flag:wl_done', deny: '嘍囉|演武場，王頭領吩咐了不許外人進！' }),
       D: exit('tianxia', 'liangshan', '渡口', { cond: 'flag:wl_done', deny: '|渡口。現在還不是離開的時候。', under: '=' }),
     },
@@ -168,9 +219,9 @@ const maps = {
 ################
 #RRRRRRRRRRRRRR#
 #_____W__S_____#
-#______________#
+#____H____M____#
 #_A__________B_#
-#______________#
+#____Q____L____#
 #_C__________D_#
 #______________#
 #_____Y__Y_____#
@@ -212,6 +263,38 @@ const maps = {
 阮小七|這姓王的看人的眼神，我不喜歡。
 @end`),
       E: exit('liangshan', 'hall', '大寨'),
+      H: npc('林沖', 'p_linchong', `
+@if flag:ch6_done
+林沖|娘子……若你在天有靈，看到林沖今日與眾兄弟替天行道，也該欣慰了。
+@elif flag:ch5_done
+林沖|祝家莊揚言要踏平梁山，哼。宋大哥一聲令下，林沖第一個打頭陣！
+@else
+林沖|師兄來了，武松、楊志也來了……梁山越來越熱鬧了。
+林沖|我常常想起東京的娘子。聽說高衙內逼她改嫁，她……自縊了。
+林沖|高俅……總有一天，林沖要親手討回這筆血債。
+@end`, { show: 'flag:ch4_done' }),
+      M: npc('魯智深', 'p_luzhishen', `
+@if flag:ch5_done
+魯智深|那黑旋風李逵，酒量倒和灑家差不多！哈哈哈！
+@else
+魯智深|灑家在五台山出家時，最受不了的就是不許喝酒！還是梁山好！
+魯智深|你知道灑家為什麼叫「花和尚」？因為背上刺了一身花繡！
+@end`, { show: 'flag:ch4_done' }),
+      Q: npc('宋江', 'p_songjiang', `
+@if flag:ch6_done
+宋江|兄弟們，梁山泊的大旗上寫著「替天行道」。我們要記得：為的是天下受苦的百姓。
+@elif flag:ch5_done
+宋江|吳用軍師說，獨龍岡的祝家莊辱罵梁山，揚言要捉盡梁山好漢。
+宋江|我們從渡口出發，往南方的祝家店打探吧。只是……不可傷了無辜百姓。
+@end`, { show: 'flag:ch5_done' }),
+      L: npc('李逵', 'p_likui', `
+@if flag:ch6_done
+李逵|祝家莊打完了！下一個打誰？鐵牛的板斧都等不及了！
+@else
+李逵|哥哥！鐵牛想下山！鐵牛想打仗！
+宋江|（遠遠地）鐵牛！不許胡鬧！
+李逵|……是，哥哥。（小聲）鐵牛就說說嘛。
+@end`, { show: 'flag:ch5_done' }),
     },
   },
 
@@ -224,9 +307,9 @@ const maps = {
 #   C.....        .    #
 #        .   L    .    #
 #        ....A.....    #
-#            S         #
-#            .         #
-#            .         #
+#            S    .    #
+#            .    .    #
+#            .    W    #
 #            .         #
 #            Z         #
 #                      #
@@ -235,6 +318,7 @@ const maps = {
       liangshan: null,
       A: entry('liangshan'),
       S: entry('start'),
+      W: exit('liaoerwa', 'start', '蓼兒洼', { cond: 'flag:lew_known' }),
       L: exit('liangshan', 'start', '梁山泊'),
       B: exit('erlongshan', 'start', '二龍山', { cond: 'flag:wl_done' }),
       C: exit('cave', 'start', '黑風洞', { cond: 'qactive:s4_cave | quest:s4_cave' }),
@@ -382,6 +466,47 @@ maps.erlongshan = {
   },
   intro: `
 |二龍山。山勢陡峭，一條羊腸小道直通山頂的寶珠寺。`,
+};
+
+maps.liaoerwa = {
+  name: '蓼兒洼', ch: 4, bg: 'bg_marsh', battleBg: 'bg_river', bgm: 'water', ground: '~', boat: true, anim: true,
+  grid: `
+##########################
+#rrrrrrrrrrrrrrrrrrrrrrrr#
+#r~~~~~~~r~~~~~~~~r~~~~~r#
+#r~~G~~~~r~~~H~~~~r~~Q~~r#
+#r~~~~~~~r~rrrr~~~r~~~~~r#
+#r~a~~~~~2~~~~r~b~3~~~~~r#
+#r~~~~~~~r~~~~r~~~r~~Z~~r#
+#rrr~~rrrr~~K~r~~~r~~~~~r#
+#r~~~~~~~r~~~~~~~~r~~~M~r#
+#r~~J~~~~r~~~~V~~~rrrr~~r#
+#r~~~~~~~rrrrrrrrrr~~~~~r#
+#r~E1~~~~r~~~~~~~~r~~~~~r#
+#rrrrrrrrrrrrrrrrrrrrrrrr#
+##########################`,
+  marks: {
+    '1': entry('start'),
+    E: exit('tianxia', 'liangshan', '回航'),
+    a: sw('lew_g1', `|嘎吱嘎吱——第一道水門緩緩升起！`, { name: '水門絞盤' }),
+    b: sw('lew_g2', `|第二道水門升起來了！水軍大營就在裡面！`, { name: '水門絞盤' }),
+    '2': gate('flag:lew_g1', '|一道木柵水門擋住了水路。'),
+    '3': gate('flag:lew_g2', '|又一道水門。'),
+    G: foe('pirate@19+pirate@19', { name: '水軍哨船' }),
+    J: foe('archer@19+pirate@19', { name: '水軍哨船' }),
+    H: foe('soldier@20+archer@20+pirate@19', { name: '水軍' }),
+    V: foe('armored@20+archer@20', { name: '水軍' }),
+    Q: foe('pirate@21+pirate@21+archer@20', { name: '水軍' }),
+    Z: foe('armored@22+archer@22+archer@21', { name: '水軍統制', noEscape: true, post: `
+|官府水軍的統制被打落水中，狼狽逃走。
+@flag lew_done
+阮小七|哈哈！這蓼兒洼以後就是咱們梁山的後花園了！回去告訴五哥！` }),
+    K: chest('pill', 2),
+    M: chest('armor4', 1),
+  },
+  intro: `
+|蓼兒洼。港汊縱橫，蘆葦叢生。遠處隱約可見官軍的旗號。
+|（轉動水門絞盤打開水門。）`,
 };
 
 maps.cave = {

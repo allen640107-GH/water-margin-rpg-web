@@ -11,10 +11,16 @@ const quests = {
   q3_ruan: { name: '說三阮撞籌', desc: '吳用要去石碣村，請阮氏兄弟入夥。乘船找到阮小七。' },
   q3_gang: { name: '黃泥岡', desc: '扮作販棗客商，在黃泥岡等候楊志的押運隊伍。' },
   q3_flee: { name: '投奔梁山', desc: '事情敗露，官兵追來！穿過蘆葦蕩，到梁山泊邊的朱貴酒店。' },
+  s3_xixi: { name: '西溪村的強人', desc: '一夥強人在東溪村東邊搶掠，替西溪村民趕走他們。', side: true },
   s3_fish: { name: '金色鯉魚', desc: '阮小七的老娘病了，想吃一尾金色鯉魚。在石碣村水面上找找。', side: true },
 };
 
 const scripts = {
+  xixi_chk: `
+@if flag:k:dongxi:23,11 & flag:k:dongxi:26,11 & !flag:xixi_done
+@flag xixi_done
+|強人都被打跑了。回去告訴西溪村民吧。
+@end`,
   ch3_start: `
 @chapter 3
 @party chaogai
@@ -56,13 +62,13 @@ const maps = {
 #,,,,,,,,:,,,,,,,,,,:,,,,,,#
 #,K,,X,,,:,,,,,,,,,,:,,,TT,#
 #,,,,,,,,:,,RRRRR,,,:,,,,,,#
-#,,TT,,,,:,,RR+RR,,,:,,G,,,#
+#,,TT,,,,:,,RR+RR,,,:,,G,,P#
 #,,,,,,,,:,,,,M,,,,,:,,,,,,#
 #TT,,,,,,:,,,,,,,,,,:,,,,,,#
 #,,,,,H,,::::::::::::::::::#
 #,,,,,,,,,,,,,,,,,,,,,,,,,Y#
 #TT,,,,,J,,,,,,,,,,,,,,,,,E#
-#TTTT,,,,,,,,,1,,,,,,,,,,TT#
+#TTTT,,,,Q,,,,1,,,,,,,,,,TT#
 ############################`,
     marks: {
       '1': entry('start'),
@@ -121,7 +127,23 @@ const maps = {
 莊客|保正仗義，咱們東溪村的人都服他。
 @end`),
       J: npc('村婦', 'n_woman', `村婦|晁保正好人哪，去年荒年，他開倉放糧，救了全村的命。`),
-      G: foe('bandit@13+bandit@12', { name: '強人' }),
+      G: foe('bandit@13+bandit@12', { name: '強人', post: `@run xixi_chk` }),
+      P: foe('bandit@13+wolf@13', { name: '強人', post: `@run xixi_chk` }),
+      Q: npc('西溪村民', 'n_elder', `
+@if quest:s3_xixi
+村民|托塔天王的大恩，西溪村永世不忘！
+@elif flag:xixi_done
+村民|強人都被打跑了！保正，這是西溪村湊的一點謝禮！
+@give amulet
+@gold 150
+@quest s3_xixi done
+@else
+村民|保正！西溪村那邊來了一夥強人，搶糧食、搶耕牛……他們就在村子東邊晃蕩！
+村民|當年保正奪了我們村的青石寶塔，我們還不服氣……如今出了事，還是只能來求保正。
+@if !qactive:s3_xixi
+@quest s3_xixi
+@end
+@end`),
       K: chest('robe2', 1),
       E: exit('shijie', 'start', '石碣村', { cond: 'flag:gs_join', deny: '|村東大路。' }),
     },

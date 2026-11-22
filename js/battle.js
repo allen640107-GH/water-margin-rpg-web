@@ -33,6 +33,13 @@ export function makeEnemy(tok) {
   return e;
 }
 
+// 隊伍人數越多，敵人越耐打（避免四人隊秒殺一切）
+export const SCALE = { hp: 0.5, bossHp: 0.3, atk: 0.07 };
+export function partyScale(foes, n) {
+  const ka = 1 + SCALE.atk * (n - 1);
+  for (const f of foes) { const kh = 1 + (f.pattern ? SCALE.bossHp : SCALE.hp) * (n - 1); f.mhp = Math.round(f.mhp * kh); f.hp = f.mhp; f.atk = Math.round(f.atk * ka); }
+}
+
 function heroActor(hero) {
   return { hero, isFoe: false, name: HEROES[hero.id].name, st: {}, buffs: [], get hp() { return hero.hp; }, set hp(v) { hero.hp = v; },
     get mp() { return hero.mp; }, set mp(v) { hero.mp = v; } };
@@ -55,6 +62,7 @@ let S = null; // 目前戰鬥
 export async function battle(spec, opts = {}) {
   const toks = spec.split('+').map(s => s.trim()).filter(Boolean);
   const foes = toks.map(makeEnemy);
+  partyScale(foes, frontParty().length);
   const snapshot = JSON.stringify({ roster: G.s.roster, inv: G.s.inv, gold: G.s.gold });
   const isBoss = foes.some(f => f.boss);
   const prevMusic = opts.prevMusic;

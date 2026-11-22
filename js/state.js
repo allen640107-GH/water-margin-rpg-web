@@ -101,7 +101,7 @@ export function cond(c, ctx = {}) {
   return c.split('&').every(part => {
     part = part.trim(); let neg = false;
     if (part[0] === '!') { neg = true; part = part.slice(1); }
-    const [k, v] = part.split(':');
+    const ci = part.indexOf(':'); const k = ci < 0 ? part : part.slice(0, ci), v = ci < 0 ? '' : part.slice(ci + 1);
     let r;
     switch (k) {
       case 'flag': r = flag(v); break;

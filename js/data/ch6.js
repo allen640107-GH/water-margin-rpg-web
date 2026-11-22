@@ -108,8 +108,8 @@ const maps = {
 #,,,RRRR,,,,,,,,,,,RRR,,,#
 #,,,RR+R,,,,,,,,,,,R+R,,,#
 #,,,,C,,,,,,,,,,,,,,W,,,E#
-#TT,,,,,,,,,,,,,,,,,,,,TT#
-#TTT,,,,,,,,,1,,,,,,,,TTT#
+#TT,,P,,,,,,,,,,,,,,,,,TT#
+#TTT,,,,,,,,,1,,,,,,Z,TTT#
 #TTTTTTTTTTTTX,TTTTTTTTTT#
 ##########################`,
     marks: {
@@ -171,6 +171,8 @@ const maps = {
 |一口被石頭填住的井。
 @end`, { img: 'o_boulder', show: '!quest:s6_well' }),
       G: foe('militia@24+archer@24', { name: '祝家探子' }),
+      P: foe('dog@24+dog@24+militia@24', { name: '祝家探子' }),
+      Z: foe('archer@24+archer@24+militia@23', { name: '祝家探子' }),
       K: chest('pill', 3),
       E: exit('pantuolu', 'start', '盤陀路', { cond: 'flag:poplar', deny: '李應|盤陀路沒人引路，萬萬去不得！先找鍾離老人問問。' }),
     },

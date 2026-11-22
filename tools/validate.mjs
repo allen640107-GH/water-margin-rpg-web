@@ -22,8 +22,10 @@ function checkSpec(spec, where, ch) {
     else if (BOSSES[t].boss) { stats.bosses.add(t); }
   }
 }
+const KREF = [];
 function checkCond(c, where) {
   if (!c) return;
+  for (const m of c.matchAll(/flag:k:([a-z_0-9]+):(\d+),(\d+)/g)) KREF.push([m[1], +m[2], +m[3], where]);
   for (let part of c.split('&')) { part = part.trim().replace(/^!/, ''); const k = part.split(':')[0]; if (part.includes(':') && !COND.has(k)) errs.push(`${where}: bad cond ${part}`); if (k === 'item' && !ITEMS[part.split(':')[1]]) errs.push(`${where}: cond unknown item ${part}`); if ((k === 'quest' || k === 'qactive') && !QUESTS[part.split(':')[1]]) errs.push(`${where}: cond unknown quest ${part}`); if ((k === 'hero' || k === 'party') && !HEROES[part.split(':')[1]]) errs.push(`${where}: cond unknown hero ${part}`); }
 }
 const seenScripts = new Set();
@@ -98,6 +100,7 @@ for (const [id, d] of Object.entries(MAPS)) {
 }
 for (const [k, s] of Object.entries(SCRIPTS)) { const m = k.match(/^ch(\d)/); script(s, 'SCRIPTS.' + k, m ? +m[1] : (k === 'prologue' ? 1 : 0)); }
 for (const k of Object.keys(QUESTS)) { /* ok */ }
+for (const [mid, x, y, w] of KREF) { const d = MAPS[mid]; const rows = d ? d.grid.replace(/^\n+|\n+\s*$/g, '').split('\n') : []; const c = rows[y] && rows[y][x]; if (!d || !c || !d.marks[c] || d.marks[c].type !== 'foe') errs.push(`${w}: flag:k ref ${mid}:${x},${y} is not a foe`); }
 // 英雄技能
 for (const [id, h] of Object.entries(HEROES)) for (const [sk] of h.skills) if (!SKILLS[sk]) errs.push(`hero ${id}: skill ${sk}`);
 for (const [id, h] of Object.entries(HEROES)) for (const v of Object.values(h.eq)) if (v && !ITEMS[v]) errs.push(`hero ${id}: eq ${v}`);
