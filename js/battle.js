@@ -9,6 +9,7 @@ import { url } from './assets.js';
 import { sfx, playMusic } from './audio.js';
 import { UI, applyItem, itemDesc } from './ui.js';
 import { BattleVFX } from './battle_fx.js';
+import { Battle3DStage } from './battle3d.js';
 
 export const B = { cur: null }; // 測試用：目前戰鬥狀態
 
@@ -82,29 +83,92 @@ function delay(ms) { return sleep(G.s.settings.fast ? ms * 0.4 : ms); }
 
 function runBattle(foes, opts) {
   return new Promise(async (resolve) => {
-    const root = $('#battle'); root.innerHTML = ''; root.hidden = false; UI.busy++;
+    const root = $('#battle'); root.innerHTML = ''; root.hidden = false; root.classList.remove('is-3d'); UI.busy++;
     const bgName = opts.bg || 'bg_yezhulin';
     root.style.backgroundImage = `url(${url(bgName)})`;
     const allies = frontParty().map(heroActor);
-    S = B.cur = { foes, allies, opts, round: 0, log: [], picking: null, over: false, auto: !!G.s.settings.auto };
+    S = B.cur = { foes, allies, opts, round: 0, log: [], picking: null, pickPool: null, over: false, auto: !!G.s.settings.auto };
     const topEl = h('div', { class: 'b-top' });
     const logEl = h('div', { class: 'b-log' }, '');
     const orderEl = h('div', { class: 'b-order', 'aria-hidden': 'true' });
-    topEl.append(logEl, orderEl);
+    const autoTopBtn = h('button', { class: 'b-auto-top', onclick: () => toggleAuto() }, '');
+    topEl.append(logEl, orderEl, autoTopBtn);
     const foeEl = h('div', { class: 'b-foes' });
     const heroEl = h('div', { class: 'b-heroes' + (allies.length > 2 ? ' n' + allies.length : '') });
     const stage = h('div', { class: 'b-stage' }, foeEl, heroEl);
     const partyEl = h('div', { class: 'b-party' });
     const cmdEl = h('div', { class: 'b-cmds' });
+    const dockEl = h('div', { class: 'b-dock' }, partyEl, cmdEl);
     const fxEl = h('div', { class: 'fx' });
     const banner = h('div', { class: 'banner' });
     const cutinEl = h('div', { class: 'b-cutin', hidden: true });
-    root.append(topEl, stage, partyEl, cmdEl, fxEl, banner, cutinEl);
+    root.append(topEl, stage, dockEl, fxEl, banner, cutinEl);
     const vfx = new BattleVFX(root, bgName);
     S.vfx = vfx;
-    S.el = { logEl, orderEl, foeEl, stage, partyEl, cmdEl, fxEl, banner, cutinEl, root };
+    S.el = { logEl, orderEl, autoTopBtn, foeEl, stage, partyEl, cmdEl, fxEl, banner, cutinEl, root };
+
+    // 建立 FF7 / FF8 風格 3D 電影運鏡戰鬥舞台
+    const syncProjections = (st3d) => {
+      if (!S || !st3d || !st3d.ok) return;
+      for (const f of S.foes) {
+        const pt = st3d.projectActor(f, 1.08);
+        if (pt && f.el) {
+          f.el.style.left = Math.round(pt.x) + 'px';
+          f.el.style.top = Math.round(pt.y) + 'px';
+        }
+      }
+      for (const a of S.allies) {
+        const pt = st3d.projectActor(a, 0.72);
+        if (pt && a.hf) {
+          a.hf.style.left = Math.round(pt.x) + 'px';
+          a.hf.style.top = Math.round(pt.y) + 'px';
+        }
+      }
+    };
+    const stage3d = new Battle3DStage(root, allies, foes, bgName, syncProjections);
+    S.stage3d = stage3d;
+    if (stage3d.ok) {
+      root.classList.add('is-3d');
+      stage3d.canvas.addEventListener('pointerup', e => {
+        if (!S || !S.picking || !S.pickPool) return;
+        const hit = stage3d.pickAtScreen(e.clientX, e.clientY, S.pickPool);
+        if (hit) S.picking(hit.isFoe ? 'foe' : 'ally', hit);
+      });
+    }
+
+    // 隨時可取消自動戰鬥（按鈕＋Esc 快捷鍵）
+    const syncAutoUI = () => {
+      if (!S) return;
+      autoTopBtn.textContent = S.auto ? '■ 取消自動' : '自動：關';
+      autoTopBtn.classList.toggle('on', S.auto);
+      if (S.auto && !S.over && !S.waitingCmd) {
+        cmdEl.innerHTML = '';
+        cmdEl.append(cmdBtn('■ 取消自動戰鬥', '隨時切回手動下指令（Esc）', () => toggleAuto(), false, 'wide on'));
+      }
+    };
+    const toggleAuto = (force) => {
+      if (!S || S.over) return;
+      sfx('click');
+      S.auto = typeof force === 'boolean' ? force : !S.auto;
+      G.s.settings.auto = S.auto;
+      if (S.auto) {
+        log('已開啟自動戰鬥（隨時可點「取消自動」切回手動）。');
+        if (S.cancelWait) S.cancelWait();
+      } else {
+        log('已取消自動戰鬥，下回合恢復手動操作！');
+        if (!S.waitingCmd) cmdEl.innerHTML = '';
+      }
+      syncAutoUI();
+    };
+    S.toggleAuto = toggleAuto;
+    S.syncAutoUI = syncAutoUI;
+    const onBattleKey = (e) => {
+      if (S && S.auto && e.key === 'Escape') { e.preventDefault(); toggleAuto(false); }
+    };
+    window.addEventListener('keydown', onBattleKey);
+
     foes.forEach((f, idx) => {
-      // 好漢當頭目時用全身戰鬥立繪（鏡像，面向我方）
+      // 好漢當頭目時用全身戰鬥立繪（鏡像，面向我方；3D 模式時僅保留 3D 投影血條與名牌）
       const hb = f.img.startsWith('p_'), fimg = hb ? 'bf_' + f.img.slice(2) : f.img;
       const im = h('img', { src: url(fimg), alt: f.name, style: (f.tint ? `filter:${f.tint} drop-shadow(0 8px 14px rgba(0,0,0,.78));` : '') + `--idle-d:${-(idx * 0.7)}s` });
       f.el = h('div', { class: 'foe' + (hb ? ' mirror' : '') + (f.big || (f.boss && foes.length === 1) ? ' big' : '') }, h('div', { class: 'st' }), im, h('div', { class: 'fn' }, f.name + (f.boss ? '' : ` Lv${f.lv}`)), h('div', { class: 'bar' }, h('b', { class: 'trail' }), h('i')));
@@ -122,9 +186,10 @@ function runBattle(foes, opts) {
       partyEl.append(a.el);
     });
     refresh();
+    syncAutoUI();
     const names = [...new Set(foes.map(f => f.name))].join('、');
     log(opts.isBoss ? `${names} 擋住了去路！` : `遭遇 ${names}！`);
-    await delay(650);
+    await delay(stage3d.ok ? 850 : 650);
 
     let result = null;
     while (!result) {
@@ -135,15 +200,25 @@ function runBattle(foes, opts) {
         if (a.hp <= 0) continue;
         if (!alive(foes).length || !alive(allies).length) break;
         renderOrder(order.slice(oi).filter(x => x.hp > 0));
+        stage3d.syncStates(a);
         const skip = await startTurn(a);
         refresh();
         if (a.hp <= 0) continue;
         if (skip) continue;
         let act;
-        if (a.isFoe) act = foeAI(a);
-        else {
+        if (a.isFoe) {
+          syncAutoUI();
+          act = foeAI(a);
+        } else {
           a.defending = false;
-          act = S.auto ? heroAI(a) : await waitCmd(a);
+          stage3d.syncStates(a);
+          if (S.auto) {
+            syncAutoUI();
+            await delay(140);
+            act = S.auto ? heroAI(a) : await waitCmd(a);
+          } else {
+            act = await waitCmd(a);
+          }
           if (act && act.type === 'flee') {
             const ps = alive(allies).reduce((s, x) => s + stat(x, 'spd'), 0) / Math.max(1, alive(allies).length);
             const es = alive(foes).reduce((s, x) => s + stat(x, 'spd'), 0) / Math.max(1, alive(foes).length);
@@ -153,6 +228,7 @@ function runBattle(foes, opts) {
         }
         if (act) await perform(a, act);
         if (!a.isFoe) a.el.classList.remove('turn');
+        stage3d.syncStates(null);
         refresh();
         if (!alive(foes).length) { result = 'win'; break; }
         if (!alive(allies).length) { result = 'lose'; break; }
@@ -164,13 +240,19 @@ function runBattle(foes, opts) {
       refresh();
     }
     S.over = true;
+    window.removeEventListener('keydown', onBattleKey);
     cmdEl.innerHTML = '';
+    autoTopBtn.hidden = true;
     let out = result;
-    if (result === 'win') await victory(foes, allies);
-    else if (result === 'lose') out = await defeat(opts);
+    if (result === 'win') {
+      stage3d.enterVictory();
+      await victory(foes, allies);
+    } else if (result === 'lose') out = await defeat(opts);
     // 倒下的同伴以 1 點體力復活
     if (out !== 'retry') for (const x of activeParty()) if (x.hp <= 0) x.hp = 1;
+    stage3d.destroy();
     vfx.destroy();
+    root.classList.remove('is-3d');
     root.hidden = true; root.innerHTML = ''; UI.busy--;
     S = B.cur = null;
     resolve(out);
@@ -277,10 +359,18 @@ function cmdBtn(label, sub, fn, dis, cls) { return h('button', { onclick: fn, di
 function waitCmd(a) {
   return new Promise(res => {
     const el = S.el.cmdEl;
-    const done = act => { el.innerHTML = ''; a.el.classList.remove('turn'); S.picking = null; clearPick(); res(act); };
+    S.waitingCmd = true;
+    const done = act => {
+      S.waitingCmd = false; S.cancelWait = null;
+      el.innerHTML = ''; a.el.classList.remove('turn');
+      S.picking = null; S.pickPool = null; clearPick();
+      S.syncAutoUI && S.syncAutoUI();
+      res(act);
+    };
+    S.cancelWait = () => done(heroAI(a));
     const main = () => {
       if (S.auto) { done(heroAI(a)); return; }
-      el.innerHTML = ''; clearPick(); S.picking = null;
+      el.innerHTML = ''; clearPick(); S.picking = null; S.pickPool = null;
       log(`${a.name} 的回合——請下指令。`);
       const skills = heroSkills(a.hero);
       el.append(
@@ -289,7 +379,7 @@ function waitCmd(a) {
         cmdBtn('道具', null, () => { sfx('click'); itemMenu(); }),
         cmdBtn('防禦', '減傷五成', () => { sfx('click'); done({ type: 'defend' }); }),
         cmdBtn('撤退', S.opts.noEscape ? '不可撤退' : null, () => { sfx('click'); done({ type: 'flee' }); }, !!S.opts.noEscape),
-        cmdBtn('自動', S.auto ? '開' : '關', () => { sfx('click'); S.auto = !S.auto; G.s.settings.auto = S.auto; if (S.auto) done(heroAI(a)); else main(); }, false, S.auto ? 'on' : null));
+        cmdBtn('自動', S.auto ? '開' : '關', () => { S.toggleAuto && S.toggleAuto(true); }, false, S.auto ? 'on' : null));
     };
     const back = () => cmdBtn('← 返回', null, () => { sfx('click'); main(); }, false, 'wide');
     const skillMenu = () => {
@@ -318,13 +408,19 @@ function waitCmd(a) {
       if (pool.length === 1 && tg === 'enemy') return cb(pool);
       log(tg === 'enemy' ? '請點選要攻擊的敵人。' : '請點選對象。');
       for (const p of pool) { p.el.classList.add('pick'); p.hf && p.hf.classList.add('pick'); }
+      S.pickPool = pool;
+      S.stage3d && S.stage3d.setPickHighlight(pool);
       S.picking = (kind, x) => { if (pool.includes(x)) { sfx('click'); cb([x]); } };
       el.append(back());
     };
     main();
   });
 }
-function clearPick() { if (!S) return; for (const x of [...S.foes, ...S.allies]) { x.el.classList.remove('pick'); x.hf && x.hf.classList.remove('pick'); } }
+function clearPick() {
+  if (!S) return;
+  for (const x of [...S.foes, ...S.allies]) { x.el.classList.remove('pick'); x.hf && x.hf.classList.remove('pick'); }
+  S.stage3d && S.stage3d.setPickHighlight(null);
+}
 
 // ───── AI ─────
 function heroAI(a) {
@@ -376,31 +472,34 @@ const actorStageEl = x => x.isFoe ? x.el : (x.hf || x.el);
 async function perform(a, act) {
   if (act.type === 'defend') {
     a.defending = true; log(`${a.name} 擺好架勢防禦。`); sfx('buff');
+    S.stage3d && S.stage3d.syncStates(a);
     S.vfx && S.vfx.play('buff', actorStageEl(a), [actorStageEl(a)]);
-    await delay(450); return;
+    await delay(420); return;
   }
   if (act.type === 'item') {
     const it = ITEMS[act.id]; give(act.id, -1);
     log(`${a.name} 使用了「${it.name}」。`);
-    if (it.dmg) {
-      sfx('fire'); flash('redf');
-      const liveT = act.t.filter(x => x.hp > 0);
-      S.vfx && S.vfx.play('fire', actorStageEl(a), liveT.map(actorStageEl));
-      setCam('cam-impact');
-      for (const t of liveT) { const d = Math.round(it.dmg * rnd(0.9, 1.1)); hurt(t, d, a); pop(t.el, '-' + d); }
-      setTimeout(() => setCam(null), 360);
-    } else {
-      S.vfx && S.vfx.play('heal', actorStageEl(a), act.t.map(actorStageEl));
-      for (const t of act.t) {
-        const before = t.hero.hp, bmp = t.hero.mp;
-        applyItem(it, [t.hero]);
-        if (it.cure) t.st = {};
-        if (t.hero.hp > before) pop(t.el, '+' + (t.hero.hp - before), 'heal');
-        else if (t.hero.mp > bmp) pop(t.el, '+' + (t.hero.mp - bmp), 'mp');
+    const liveT = it.dmg ? act.t.filter(x => x.hp > 0) : act.t;
+    const applyFn = async () => {
+      if (it.dmg) {
+        sfx('fire'); flash('redf');
+        S.vfx && S.vfx.play('fire', actorStageEl(a), liveT.map(actorStageEl));
+        for (const t of liveT) { const d = Math.round(it.dmg * rnd(0.9, 1.1)); hurt(t, d, a); pop(t.el, '-' + d); }
+      } else {
+        S.vfx && S.vfx.play('heal', actorStageEl(a), liveT.map(actorStageEl));
+        for (const t of liveT) {
+          const before = t.hero.hp, bmp = t.hero.mp;
+          applyItem(it, [t.hero]);
+          if (it.cure) t.st = {};
+          if (t.hero.hp > before) pop(t.el, '+' + (t.hero.hp - before), 'heal');
+          else if (t.hero.mp > bmp) pop(t.el, '+' + (t.hero.mp - bmp), 'mp');
+        }
+        sfx('heal'); flash('healf');
       }
-      sfx('heal'); flash('healf');
-    }
-    await delay(650); return;
+    };
+    if (S.stage3d && S.stage3d.ok) await S.stage3d.playAction(a, liveT, it.dmg ? 'fire' : 'heal', { fast: G.s.settings.fast }, applyFn);
+    else { await applyFn(); await delay(620); }
+    return;
   }
   const Sk = SKILLS[act.sk];
   if (!a.isFoe && Sk.mp) a.hero.mp -= Sk.mp;
@@ -413,81 +512,90 @@ async function perform(a, act) {
   } else {
     log(`${a.name} 發動攻擊。`);
   }
-  setCam(a.isFoe ? 'cam-foe' : 'cam-hero');
-  if (a.isFoe) { a.el.classList.add('act'); setTimeout(() => a.el && a.el.classList.remove('act'), 420); }
-  else if (a.hf) { a.hf.classList.add('act'); setTimeout(() => a.hf && a.hf.classList.remove('act'), 460); }
-  await delay(act.sk === 'attack' ? 220 : 380);
-  const fxs = { thunder: 'thunder', magic: 'thunder', fire: 'fire', water: 'water', arrow: 'arrow', heal: 'heal', buff: 'buff', debuff: 'debuff', big: 'crit', claw: 'hit', sweep: 'slash', multi: 'hit', chain: 'hit', thrust: 'slash', slash: 'slash' };
-  sfx(fxs[Sk.fx] || 'hit');
-  if (Sk.fx === 'thunder' || Sk.fx === 'magic') flash('thunder');
-  else if (Sk.fx === 'big') flash('flash');
-  else if (Sk.fx === 'fire') flash('redf');
-  if (act.sk.startsWith('t_')) sfx('roar');
 
   let targets = act.t.filter(x => Sk.kind === 'revive' ? x.hp <= 0 : x.hp > 0);
   if (!targets.length && (Sk.target === 'enemy')) { const pool = a.isFoe ? alive(S.allies) : alive(S.foes); if (pool.length) targets = [pick(pool)]; }
 
-  // 播放 Canvas 水墨與元素招式特效
-  if (S.vfx && targets.length) {
-    S.vfx.play(Sk.fx || 'slash', actorStageEl(a), targets.map(actorStageEl));
-  }
+  const onImpact = async () => {
+    const fxs = { thunder: 'thunder', magic: 'thunder', fire: 'fire', water: 'water', arrow: 'arrow', heal: 'heal', buff: 'buff', debuff: 'debuff', big: 'crit', claw: 'hit', sweep: 'slash', multi: 'hit', chain: 'hit', thrust: 'slash', slash: 'slash' };
+    sfx(fxs[Sk.fx] || 'hit');
+    if (Sk.fx === 'thunder' || Sk.fx === 'magic') flash('thunder');
+    else if (Sk.fx === 'big') flash('flash');
+    else if (Sk.fx === 'fire') flash('redf');
+    if (act.sk.startsWith('t_')) sfx('roar');
 
-  switch (Sk.kind) {
-    case 'phys': case 'mag': case 'steal': {
-      const hits = Sk.hits || 1;
-      for (let i = 0; i < hits; i++) {
-        let tl = targets;
-        if (Sk.rand) { const pool = a.isFoe ? alive(S.allies) : alive(S.foes); if (!pool.length) break; tl = [pick(pool)]; }
-        if (i > 0 && S.vfx) S.vfx.play(Sk.fx || 'slash', actorStageEl(a), tl.map(actorStageEl));
-        let anyCrit = false;
-        for (const t of tl) {
-          if (t.hp <= 0) continue;
-          const r = calcDamage(a, t, Sk);
-          if (r.miss) { pop(t.el, '落空', 'miss'); sfx('miss'); continue; }
-          hurt(t, r.dmg, a);
-          pop(t.el, (r.crit ? '暴擊 ' : '') + r.dmg, r.crit ? 'crit' : '');
-          if (r.crit) { sfx('crit'); anyCrit = true; }
-          if (Sk.st && t.hp > 0) applyStatus(t, Sk.st);
-          if (Sk.kind === 'steal' && t.isFoe) await steal(a, t);
+    if (S.vfx && targets.length) {
+      S.vfx.play(Sk.fx || 'slash', actorStageEl(a), targets.map(actorStageEl));
+    }
+
+    switch (Sk.kind) {
+      case 'phys': case 'mag': case 'steal': {
+        const hits = Sk.hits || 1;
+        for (let i = 0; i < hits; i++) {
+          let tl = targets;
+          if (Sk.rand) { const pool = a.isFoe ? alive(S.allies) : alive(S.foes); if (!pool.length) break; tl = [pick(pool)]; }
+          if (i > 0 && S.vfx) S.vfx.play(Sk.fx || 'slash', actorStageEl(a), tl.map(actorStageEl));
+          let anyCrit = false;
+          for (const t of tl) {
+            if (t.hp <= 0) continue;
+            const r = calcDamage(a, t, Sk);
+            if (r.miss) { pop(t.el, '落空', 'miss'); sfx('miss'); continue; }
+            hurt(t, r.dmg, a);
+            pop(t.el, (r.crit ? '暴擊 ' : '') + r.dmg, r.crit ? 'crit' : '');
+            if (r.crit) { sfx('crit'); anyCrit = true; }
+            if (Sk.st && t.hp > 0) applyStatus(t, Sk.st);
+            if (Sk.kind === 'steal' && t.isFoe) await steal(a, t);
+          }
+          if (anyCrit || Sk.fx === 'big' || Sk.fx === 'thunder') {
+            setCam('cam-impact');
+            if (anyCrit) flash('flash');
+          }
+          if (hits > 1) await delay(200);
         }
-        // 打擊停頓與震撼鏡頭
-        if (anyCrit || Sk.fx === 'big' || Sk.fx === 'thunder') {
-          setCam('cam-impact');
-          if (anyCrit) flash('flash');
+        if (Sk.self) { const d = Math.round(stat(a, 'mhp') * Sk.self); a.hp = Math.max(1, a.hp - d); pop(a.el, '-' + d); }
+        break;
+      }
+      case 'heal': {
+        for (const t of targets) {
+          const amt = Math.round(Sk.power * (stat(a, 'int') * 3 + stat(a, 'mhp') * 0.08 + 20) * rnd(0.95, 1.05));
+          const mhp = stat(t, 'mhp'); const before = t.hp; t.hp = Math.min(mhp, t.hp + amt);
+          if (Sk.cure) t.st = {};
+          pop(t.el, '+' + (t.hp - before), 'heal');
+          if (Sk.buff) addBuffs(t, Sk.buff, Sk.turns);
         }
-        if (hits > 1) await delay(220);
+        flash('healf'); break;
       }
-      if (Sk.self) { const d = Math.round(stat(a, 'mhp') * Sk.self); a.hp = Math.max(1, a.hp - d); pop(a.el, '-' + d); }
-      break;
-    }
-    case 'heal': {
-      for (const t of targets) {
-        const amt = Math.round(Sk.power * (stat(a, 'int') * 3 + stat(a, 'mhp') * 0.08 + 20) * rnd(0.95, 1.05));
-        const mhp = stat(t, 'mhp'); const before = t.hp; t.hp = Math.min(mhp, t.hp + amt);
-        if (Sk.cure) t.st = {};
-        pop(t.el, '+' + (t.hp - before), 'heal');
-        if (Sk.buff) addBuffs(t, Sk.buff, Sk.turns);
+      case 'revive': {
+        for (const t of targets) { t.hp = Math.max(1, Math.round(stat(t, 'mhp') * Sk.power)); t.st = {}; pop(t.el, '復活', 'heal'); }
+        break;
       }
-      flash('healf'); break;
-    }
-    case 'revive': {
-      for (const t of targets) { t.hp = Math.max(1, Math.round(stat(t, 'mhp') * Sk.power)); t.st = {}; pop(t.el, '復活', 'heal'); }
-      break;
-    }
-    case 'buff': {
-      for (const t of targets) { addBuffs(t, Sk.buff, Sk.turns); if (Sk.taunt) t.st.taunt = Sk.turns; pop(t.el, '強化', 'mp'); }
-      break;
-    }
-    case 'debuff': {
-      for (const t of targets) {
-        if (Sk.buff) addBuffs(t, Sk.buff, Sk.turns);
-        if (Sk.st) applyStatus(t, Sk.st, true);
-        pop(t.el, Sk.buff ? '弱化' : '', 'miss');
+      case 'buff': {
+        for (const t of targets) { addBuffs(t, Sk.buff, Sk.turns); if (Sk.taunt) t.st.taunt = Sk.turns; pop(t.el, '強化', 'mp'); }
+        break;
       }
-      break;
+      case 'debuff': {
+        for (const t of targets) {
+          if (Sk.buff) addBuffs(t, Sk.buff, Sk.turns);
+          if (Sk.st) applyStatus(t, Sk.st, true);
+          pop(t.el, Sk.buff ? '弱化' : '', 'miss');
+        }
+        break;
+      }
     }
+    refresh();
+    S.stage3d && S.stage3d.syncStates(a);
+  };
+
+  if (S.stage3d && S.stage3d.ok) {
+    await S.stage3d.playAction(a, targets, Sk.fx || 'slash', { fast: G.s.settings.fast }, onImpact);
+  } else {
+    setCam(a.isFoe ? 'cam-foe' : 'cam-hero');
+    if (a.isFoe) { a.el.classList.add('act'); setTimeout(() => a.el && a.el.classList.remove('act'), 420); }
+    else if (a.hf) { a.hf.classList.add('act'); setTimeout(() => a.hf && a.hf.classList.remove('act'), 460); }
+    await delay(act.sk === 'attack' ? 220 : 380);
+    await onImpact();
+    setTimeout(() => setCam(null), 260);
   }
-  setTimeout(() => setCam(null), 260);
   // 頭目狂暴
   for (const f of S.foes) if (f.enrage && !f.enraged && f.hp > 0 && f.hp < f.mhp * f.enrage[0]) {
     f.enraged = true; await delay(300); showBanner('狂暴'); log(f.enrage[1]); sfx(f.kind === 'beast' ? 'roar' : 'gong'); flash('redf'); await delay(1100);

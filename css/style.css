@@ -278,30 +278,69 @@ button { font: inherit; font-weight: 800; color: inherit; cursor: pointer; touch
 h3 { margin: 10px 0 6px; font-family: var(--serif); color: var(--red); font-size: 1.2em; letter-spacing: .1em; border-bottom: 1px solid rgba(165,36,26,.25); padding-bottom: 3px; }
 .up { color: #1a7a1a; } .down { color: #b0201a; }
 
-/* ── 家用主機級戰鬥舞台 ── */
+/* ── 家用主機級 FF7/FF8 3D 電影戰鬥舞台 ── */
 #battle {
   position: absolute; inset: 0; z-index: 40;
   background: #080605 center/cover no-repeat;
-  display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto;
-  padding: calc(6px + var(--safe-t)) 10px calc(8px + var(--safe-b)); gap: 6px;
+  display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
+  padding: calc(8px + var(--safe-t)) 12px calc(10px + var(--safe-b)); gap: 6px;
   overflow: hidden;
 }
+#battle.is-3d { background-image: none !important; }
 #battle::before {
-  content: ''; position: absolute; inset: 0; pointer-events: none;
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1;
   background:
-    radial-gradient(ellipse at 50% 42%, rgba(0,0,0,0) 25%, rgba(6,4,3,.58) 100%),
-    linear-gradient(180deg, rgba(8,6,4,.48) 0%, rgba(8,6,4,.06) 30%, rgba(8,6,4,.15) 68%, rgba(8,6,4,.84) 100%);
+    radial-gradient(ellipse at 50% 42%, rgba(0,0,0,0) 35%, rgba(6,4,3,.42) 100%),
+    linear-gradient(180deg, rgba(8,6,4,.42) 0%, rgba(8,6,4,0) 24%, rgba(8,6,4,0) 72%, rgba(8,6,4,.75) 100%);
 }
 #battle > * { position: relative; z-index: 2; }
+.b-3d { position: absolute !important; inset: 0; width: 100%; height: 100%; display: block; z-index: 0 !important; }
 .b-vfx { position: absolute !important; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5 !important; }
 
 .b-top { display: flex; align-items: center; gap: 8px; }
 .b-log {
   flex: 1; min-height: 2.3em; display: flex; align-items: center; justify-content: center; text-align: center;
-  background: linear-gradient(90deg, rgba(14,10,7,.88), rgba(28,20,13,.92), rgba(14,10,7,.88));
+  background: linear-gradient(90deg, rgba(12,18,34,.86), rgba(22,28,46,.92), rgba(12,18,34,.86));
   border: 1.5px solid var(--gold); border-radius: 6px; padding: 5px 14px; font-size: 1.05em;
-  box-shadow: 0 4px 16px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,236,180,.2);
+  box-shadow: 0 4px 16px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,236,180,.22);
 }
+.b-auto-top {
+  min-height: 44px; padding: 4px 14px; border-radius: 6px; flex-shrink: 0; white-space: nowrap;
+  border: 1.5px solid var(--gold);
+  background: linear-gradient(180deg, rgba(30,38,58,.92), rgba(14,18,30,.94));
+  color: var(--text); font-size: .98em;
+}
+.b-auto-top.on {
+  background: linear-gradient(180deg, var(--red2), var(--red));
+  border-color: var(--gold2); color: #fff8e8;
+  box-shadow: 0 0 14px rgba(210,54,40,.65);
+  animation: autoPulse 1.4s ease-in-out infinite;
+}
+@keyframes autoPulse { 50% { box-shadow: 0 0 22px rgba(255,196,90,.85); } }
+
+/* FF7/FF8 底部雙欄寬銀幕操作列 */
+.b-dock {
+  display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(260px, 1fr); gap: 10px; align-items: end;
+}
+@media (max-width: 780px) {
+  .b-dock { grid-template-columns: 1fr; gap: 6px; }
+}
+
+/* 3D 模式下：隱藏 2D 貼圖，保留 3D 投影血條、名牌、狀態與浮動跳字（限定 .b-foes/.b-heroes 避免影響頂部時間軸！） */
+#battle.is-3d .b-stage { position: static; pointer-events: none; }
+#battle.is-3d .b-foes, #battle.is-3d .b-heroes { position: absolute; inset: 0; display: block; padding: 0; pointer-events: none; }
+#battle.is-3d .b-foes .foe, #battle.is-3d .b-heroes .hf {
+  position: absolute; width: 150px; height: auto; transform: translate(-50%, -100%);
+  pointer-events: auto; justify-content: flex-end; align-items: center;
+}
+#battle.is-3d .b-foes .foe::before, #battle.is-3d .b-heroes .hf::after { display: none; }
+#battle.is-3d .b-foes .foe img, #battle.is-3d .b-heroes .hf img { display: none; }
+#battle.is-3d .b-heroes .hf { width: 120px; height: 24px; pointer-events: none; }
+#battle.is-3d .b-foes .foe .fn { font-size: 1em; background: rgba(12,16,28,.88); border: 1.5px solid rgba(219,181,94,.72); box-shadow: 0 3px 10px rgba(0,0,0,.7); }
+#battle.is-3d .b-foes .foe.pick .fn { border-color: #ffe268; box-shadow: 0 0 14px rgba(255,226,104,.9); background: rgba(145,28,20,.92); }
+#battle.is-3d .b-foes .foe .bar { width: 124px; height: 9px; margin-top: 3px; }
+#battle.is-3d .b-foes .foe .st { position: static; transform: none; margin-bottom: 3px; }
+#battle.is-3d .pop { top: -8px; }
 .b-order { display: flex; align-items: center; gap: 5px; flex-shrink: 0; padding: 3px 6px; background: rgba(12,9,6,.82); border: 1.5px solid rgba(219,181,94,.65); border-radius: 6px; }
 .bo-it { flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%; overflow: hidden; border: 2px solid var(--gold); opacity: .72; transition: transform .2s, opacity .2s; background: #1e1610; }
 .bo-it.foe { border-color: #d44234; }
@@ -403,12 +442,12 @@ h3 { margin: 10px 0 6px; font-family: var(--serif); color: var(--red); font-size
 .hf.pick img { animation: pick .75s infinite; }
 
 /* ── 主機級隊伍狀態卡與招式指令列 ── */
-.b-party { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
+.b-party { display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); gap: 7px; }
 .pc {
   position: relative; display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; align-items: center;
-  background: linear-gradient(180deg, rgba(24,18,13,.92), rgba(12,9,6,.96));
-  border: 1.5px solid rgba(176,142,76,.65); border-radius: 6px; padding: 5px 8px;
-  box-shadow: 0 4px 14px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,235,175,.15);
+  background: linear-gradient(180deg, rgba(18,26,48,.92), rgba(10,14,26,.96));
+  border: 1.5px solid rgba(219,181,94,.72); border-radius: 6px; padding: 6px 9px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.65), inset 0 1px 0 rgba(190,220,255,.18);
   cursor: pointer; min-width: 0;
 }
 .pc img { width: 48px; height: 48px; border-radius: 50%; border: 2px solid var(--gold); grid-row: span 4; background: #e8dcbc; object-fit: cover; object-position: 50% 12%; }
@@ -434,8 +473,12 @@ h3 { margin: 10px 0 6px; font-family: var(--serif); color: var(--red); font-size
 .b-cmds button:hover:not(:disabled) { background: linear-gradient(180deg, #fff8e4, #efd89e); border-color: var(--gold2); transform: translateY(-1px); }
 .b-cmds button small { display: block; font-family: var(--body); font-size: .88em; color: #5a4020; font-weight: 700; letter-spacing: 0; }
 .b-cmds button:disabled { opacity: .45; }
-.b-cmds button.on { background: linear-gradient(180deg, var(--red2), var(--red)); color: #fff; border-color: var(--gold2); }
-.b-cmds button.on small { color: #fde; }
+.b-cmds button.on, .b-cmds button.on:hover:not(:disabled) {
+  background: linear-gradient(180deg, #d83b2c, #8e1710);
+  color: #fff8e8; border-color: var(--gold2);
+  box-shadow: 0 0 18px rgba(216,59,44,.65), inset 0 1px 0 rgba(255,220,180,.35);
+}
+.b-cmds button.on small { color: #ffe7c4; }
 .b-cmds .wide { grid-column: 1 / -1; }
 .b-list { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 13em), 1fr)); gap: 6px; max-height: 34vh; overflow-y: auto; }
 .b-list button { text-align: left; }
@@ -510,16 +553,12 @@ h3 { margin: 10px 0 6px; font-family: var(--serif); color: var(--red); font-size
   .pc img { width: 40px; height: 40px; }
 }
 @media (orientation: landscape) and (max-height: 560px) {
-  #battle { grid-template-columns: minmax(0, 1fr) minmax(280px, 44%); grid-template-rows: auto minmax(0, 1fr) auto; }
-  .b-top { grid-column: 1 / -1; }
+  #battle { grid-template-rows: auto minmax(0, 1fr) auto; }
   .b-log { min-height: 1.8em; }
-  .b-stage { grid-row: 2 / 4; flex-direction: row; }
-  .b-stage .b-foes { flex: 1.3 1 0; }
-  .b-party { grid-column: 2; grid-row: 2; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; overflow-y: auto; }
-  .b-cmds { grid-column: 2; grid-row: 3; }
-  .b-cmds button { min-height: 46px; }
-  .pc img { width: 36px; height: 36px; }
-  .b-list { max-height: 46vh; }
+  .b-dock { grid-template-columns: minmax(0, 1.2fr) minmax(240px, 1fr); }
+  .b-cmds button { min-height: 44px; }
+  .pc img { width: 38px; height: 38px; }
+  .b-list { max-height: 40vh; }
   #dialog .por { height: min(62vh, 300px); }
   #dialog .box { min-height: 5.6em; margin-left: min(26vw, 230px); }
   #dpad { transform: scale(.85); transform-origin: left bottom; }
