@@ -137,7 +137,7 @@ export function heroDetail(body, id, back) {
     body.append(h('div', { class: 'mhead' }, h('button', { class: 'sbtn', onclick: () => { sfx('click'); back(); } }, '← 返回')));
     const statBox = h('div', { class: 'stats' });
     for (const k of STATS) statBox.append(h('div', null, `${STAT_NAME[k]}：${k === 'hp' ? hero.hp + '/' + m.hp : k === 'mp' ? hero.mp + '/' + m.mp : m[k]}`));
-    body.append(h('div', { class: 'hero-card' }, h('img', { class: 'hero-big', src: url(H.img), alt: H.name }),
+    body.append(h('div', { class: 'hero-card' }, h('img', { class: 'hero-big', src: url('bf_' + id), alt: H.name }),
       h('div', null, h('h3', null, `${H.title}　${H.name}`), h('div', { class: 'sub' }, `${H.star}・${H.role}・兵器：${WTYPE_NAME[H.wtype]}`),
         h('div', null, `Lv ${hero.lv}　經驗 ${hero.exp}/${expNext(hero.lv)}`), bar(hero.exp, expNext(hero.lv), 'ex'), statBox,
         h('div', { class: 'note' }, H.desc))));
@@ -245,6 +245,12 @@ function saveTab(body, rerender, canSave = true) {
   }
 }
 function optTab(body, rerender) {
+  const gfx = UIH.getGfxMode ? UIH.getGfxMode() : '2d';
+  const gfxNames = { hd2d: 'HD-2D 極致', lite: 'HD-2D 流暢', '2d': '經典 2D' };
+  const nextGfx = { hd2d: 'lite', lite: '2d', '2d': 'hd2d' };
+  body.append(h('div', { class: 'row' },
+    h('div', { class: 'grow' }, h('div', null, '畫面品質'), h('div', { class: 'sub' }, 'HD-2D 立體光影、景深虛化與動態水面')),
+    h('button', { onclick: () => { sfx('click'); UIH.setGfxMode && UIH.setGfxMode(nextGfx[gfx] || 'hd2d'); rerender(); } }, gfxNames[gfx] || 'HD-2D 極致')));
   body.append(h('div', { class: 'row' }, h('div', { class: 'grow' }, '音樂與音效'), h('button', { onclick: () => { setMuted(!isMuted()); UIH.syncMute && UIH.syncMute(); rerender(); } }, isMuted() ? '已關閉' : '已開啟')));
   body.append(h('div', { class: 'row' }, h('div', { class: 'grow' }, h('div', null, '戰鬥速度'), h('div', { class: 'sub' }, '快速模式縮短戰鬥動畫時間')), h('button', { onclick: () => { G.s.settings.fast = !G.s.settings.fast; rerender(); } }, G.s.settings.fast ? '快速' : '一般')));
   body.append(h('div', { class: 'row' }, h('div', { class: 'grow' }, h('div', null, '文字速度'), h('div', { class: 'sub' }, '開啟後對話直接全部顯示')), h('button', { onclick: () => { UI.fastText = !UI.fastText; try { localStorage.setItem('shuihu.fasttext', UI.fastText ? '1' : '0'); } catch (e) {} rerender(); } }, UI.fastText ? '立即' : '逐字')));

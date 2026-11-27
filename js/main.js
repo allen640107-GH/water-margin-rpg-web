@@ -7,13 +7,13 @@ import { UI, UIH, advanceDialog, say, choice, toast, caption, fade, setCG, openM
 import { battle, B } from './battle.js';
 import { playMusic, currentMusic, sfx, installAudioUnlock, isMuted, setMuted, resume, audioState } from './audio.js';
 import { img, preload, onAnyLoad, url } from './assets.js';
-import { M, MAPH, initMap, resize, loadMap, update, draw, tryStep, pathTo, facing, screenToTile, mapState, visible, instAt, resetBoulders, sceneAssets } from './map.js';
+import { M, MAPH, initMap, resize, loadMap, update, draw, tryStep, pathTo, facing, screenToTile, mapState, visible, instAt, resetBoulders, sceneAssets, getGfxMode, setGfxMode, isHD2D, shakeMap } from './map.js';
 import { MAPS, SCRIPTS, QUESTS, CHAPTERS } from './data/world.js';
 import { ITEMS } from './data/items.js';
 import { HEROES } from './data/heroes.js';
 import { BOSSES } from './data/enemies.js';
 
-const VERSION = '2.0.0';
+const VERSION = '3.0.0 HD-2D';
 let scriptDepth = 0, inGame = false, lastPos = null;
 
 // ───── 劇本 API ─────
@@ -35,7 +35,7 @@ Object.assign(API, {
   cg: n => setCG(n),
   title: t => { const [a, b, c] = t.split('/'); return caption(a, b, c, 3000); },
   pos: (x, y, d) => { M.px = x; M.py = y; M.fx = x; M.fy = y; G.s.x = x; G.s.y = y; if (d != null) G.s.dir = +d; M.dirty = true; },
-  shake: () => { const c = $('#map'); c.classList.remove('shake'); void c.offsetWidth; c.classList.add('shake'); sfx('hit'); },
+  shake: () => { shakeMap(0.32); const c = $('#map'); c.classList.remove('shake'); void c.offsetWidth; c.classList.add('shake'); sfx('hit'); },
   script: n => { if (!SCRIPTS[n]) { console.warn('缺少劇本', n); return ''; } return SCRIPTS[n]; },
   mapState: id => mapState(id),
   refreshMap: () => { M.dirty = true; refreshHud(); },
@@ -48,6 +48,8 @@ Object.assign(UIH, {
   mapName: id => (MAPS[id] ? MAPS[id].name : id),
   quests: QUESTS,
   syncMute: () => syncMute(),
+  getGfxMode: () => getGfxMode(),
+  setGfxMode: m => setGfxMode(m),
 });
 
 async function runScript(src, ctx = {}) {
@@ -342,7 +344,8 @@ function loop(now) {
     update(now);
     if (!M.moving) lastPos = [M.px, M.py];
     const anim = M.def.weather || M.def.boat || M.def.anim;
-    if (!B.cur && (M.dirty || M.moving || now - lastDraw > (anim ? 50 : 66))) { draw(now); lastDraw = now; }
+    const hdActive = isHD2D();
+    if (!B.cur && (hdActive || M.dirty || M.moving || now - lastDraw > (anim ? 50 : 66))) { draw(now); lastDraw = now; }
   }
   requestAnimationFrame(loop);
 }

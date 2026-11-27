@@ -5,6 +5,7 @@ import { ITEMS } from './data/items.js';
 import { HEROES } from './data/heroes.js';
 import { ARCHETYPES, BOSSES } from './data/enemies.js';
 import { sfx } from './audio.js';
+import { HD2DRenderer } from './map3d.js';
 
 export const M = { id: null, def: null, W: 0, H: 0, rows: [], inst: [], px: 0, py: 0, moving: false, path: [], dirty: true, ts: 48, cam: [0, 0], dest: null, t0: 0 };
 export const MAPH = {}; // main.js 提供：interact(inst), stepOn(inst), onPlates(), busy()
@@ -14,9 +15,35 @@ const SOLID_T = new Set(['#', 'R', '^', 'T', 'F', '~', 'r', ' ']);
 const SOLID_M = new Set(['npc', 'foe', 'chest', 'sign', 'boulder', 'switch', 'obj', 'gate', 'reset']);
 
 let canvas, ctx, dpr = 1, cw = 0, chh = 0;
+let hd = null;
+let gfxMode = 'hd2d'; // 'hd2d' | 'lite' | '2d'
+try { const saved = localStorage.getItem('shuihu.gfx'); if (saved === 'hd2d' || saved === 'lite' || saved === '2d') gfxMode = saved; } catch (e) {}
+
+export function getGfxMode() { return (hd && hd.ok) ? gfxMode : '2d'; }
+export function isHD2D() { return !!(hd && hd.ok && gfxMode !== '2d'); }
+export function setGfxMode(mode) {
+  gfxMode = (mode === 'lite' || mode === '2d') ? mode : 'hd2d';
+  try { localStorage.setItem('shuihu.gfx', gfxMode); } catch (e) {}
+  if (hd && hd.ok) {
+    hd.setVisible(gfxMode !== '2d');
+    if (gfxMode !== '2d') {
+      hd.setQuality(gfxMode === 'lite' ? 'lite' : 'high');
+      if (M.def) hd.buildMap(M, S, hdHelpers);
+    }
+  }
+  M.dirty = true;
+}
+export function shakeMap(power = 0.28) {
+  if (isHD2D()) hd.triggerShake(power);
+}
 
 export function initMap(cv) {
   canvas = cv; ctx = canvas.getContext('2d');
+  hd = new HD2DRenderer(cv);
+  if (hd.ok) {
+    hd.setQuality(gfxMode === 'lite' ? 'lite' : 'high');
+    hd.setVisible(gfxMode !== '2d');
+  }
   resize();
 }
 export function resize() {
@@ -26,6 +53,7 @@ export function resize() {
   canvas.width = Math.round(cw * dpr); canvas.height = Math.round(chh * dpr);
   const short = Math.min(cw, chh);
   M.ts = Math.max(40, Math.min(64, Math.round(short / (cw < chh ? 8.2 : 9.5))));
+  if (hd && hd.ok) hd.resize(cw, chh, dpr);
   M.dirty = true;
 }
 
@@ -191,8 +219,20 @@ export function pathTo(tx, ty) {
 }
 export function facing() { const [dx, dy] = DIRS[G.s.dir]; return instAt(M.px + dx, M.py + dy); }
 
-export function screenToTile(sx, sy) { return [Math.floor((sx + M.cam[0]) / M.ts), Math.floor((sy + M.cam[1]) / M.ts)]; }
-export function tileToScreen(x, y) { return [x * M.ts - M.cam[0] + M.ts / 2, y * M.ts - M.cam[1] + M.ts / 2]; }
+export function screenToTile(sx, sy) {
+  if (isHD2D()) {
+    const p = hd.screenToTile(sx, sy);
+    if (p) return p;
+  }
+  return [Math.floor((sx + M.cam[0]) / M.ts), Math.floor((sy + M.cam[1]) / M.ts)];
+}
+export function tileToScreen(x, y) {
+  if (isHD2D()) {
+    const p = hd.worldToScreen(x + 0.5, 0.2, y + 0.5);
+    if (p) return p;
+  }
+  return [x * M.ts - M.cam[0] + M.ts / 2, y * M.ts - M.cam[1] + M.ts / 2];
+}
 
 // ───── 繪製（v2）─────
 // 主題：決定牆、建築、樹木與門的畫法
@@ -222,8 +262,8 @@ const GTINT = { 'K': 'rgba(20,40,10,.45)', 'W': 'rgba(30,30,35,.45)', 'D': 'rgba
 const SOFT = ['~', 's', '.', ',', 'K', '*', ':', '_'];   // 柔邊，自下而上
 const HARD = ['^', 'W', 'D'];
 const FALLBACK = { ',': '#7d9a5a', '.': '#a98b5e', ':': '#9a9a96', '_': '#6a4a2a', '*': '#e8eef4', 's': '#d8c070', '~': '#5d8fa8', '^': '#7a7670', 'K': '#3f5a2c', 'W': '#4a4846', 'D': '#2a1a10' };
-// 角色比例（相對格高）
-const SPR_H = { n_child: 1.12, e_dog: 1.05, e_wolf: 1.2, e_boar: 1.2, e_leopard: 1.2, e_snake: 0.95, b_tiger: 1.75, likui: 1.58, luzhishen: 1.6, b_jiangmenshen: 1.68, b_luantingyu: 1.64, b_zhubiao: 1.6 };
+// 角色比例（相對格高：高精細寫實比例主角略高挺拔）
+const SPR_H = { n_child: 1.12, e_dog: 1.05, e_wolf: 1.2, e_boar: 1.2, e_leopard: 1.2, e_snake: 0.95, b_tiger: 1.8, linchong: 1.72, wusong: 1.74, likui: 1.76, luzhishen: 1.82, b_jiangmenshen: 1.78, b_luantingyu: 1.74, b_zhubiao: 1.7 };
 const PROPS = new Set(['tree_pine', 'tree_willow', 'tree_broad', 'tree_snowpine', 'tree_bamboo', 'tree_poplar', 'chest', 'chest_open', 'boulder', 'rock', 'bush', 'reeds', 'signpost', 'lantern', 'well', 'haystack', 'jars', 'cart', 'statue']);
 const mimg = n => img('map/' + n);
 export const sprName = im => (im || '').replace(/^p_/, '');
@@ -291,13 +331,13 @@ export function sceneAssets() { return S.need.slice(); }
 
 // 地表預繪（每格 P 像素）
 function groundTerrain(x, y) {
-  const c = tile(x, y), base = M.def.ground || ',';
-  const baseT = base === '~' ? ',' : base;
+  const c = tile(x, y), base = M.def.ground || (S.themeName === 'snow' ? '*' : ',');
+  const baseT = base === '~' ? (S.themeName === 'snow' ? '*' : ',') : base;
   switch (c) {
     case ',': case '.': case ':': case '_': case '*': case 's': case '~': return c;
     case '^': return S.wallStyle === 'interior' ? 'D' : '^';
-    case 'F': return 'K';
-    case '#': return S.wallStyle === 'forest' ? 'K' : S.wallStyle === 'cliff' ? '^' : S.wallStyle === 'interior' ? 'D' : 'W';
+    case 'F': return S.themeName === 'snow' ? '*' : 'K';
+    case '#': return S.wallStyle === 'forest' ? (S.themeName === 'snow' ? '*' : 'K') : S.wallStyle === 'cliff' ? '^' : S.wallStyle === 'interior' ? 'D' : 'W';
     case 'r': return M.def.boat ? '~' : ',';
     case 'o': return M.def.boat ? '~' : ':';
     case 'x': return '.';
@@ -395,14 +435,41 @@ function buildGround() {
 }
 
 // ───── 每幀繪製 ─────
+const hdHelpers = {
+  tile, solidGroup, visible, gateOpen, PROPS, sprName, sprH, foeImg, walkFrame, avgLevel,
+};
 let lastTileSig = '';
 export function draw(now) {
   if (!ctx || !M.def) return;
   const ts = M.ts;
+  const fx = M.fx ?? M.px, fy = M.fy ?? M.py;
+  const t = now / 1000;
+
+  // 地表貼圖預繪（2D 與 HD-2D 共用）
+  if (!M.def.image) {
+    const sig = M.rows.map(r => r.join('')).join('');
+    const wantP = Math.max(24, Math.floor(Math.min(96, M.ts * dpr, Math.sqrt(4.2e6 / (M.W * M.H)))));
+    if (!S.ground || sig !== lastTileSig || S.gP !== wantP || (!S.complete && S.need.filter(n => n.startsWith('map/tx_') || n.startsWith('map/strip_')).every(n => ready(img(n))))) {
+      lastTileSig = sig; buildGround();
+    }
+  }
+
+  // ── HD-2D 2.5D 主機渲染模式 ──
+  if (isHD2D()) {
+    hd.setVisible(true);
+    hd.render(now, M, S, hdHelpers);
+    // 2D 疊層只繪製超銳利繁體中文名牌、任務驚嘆號與鎖頭圖示
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cw, chh);
+    drawHD2DOverlay(now, fx, fy, ts, t);
+    M.dirty = false;
+    return;
+  }
+
+  if (hd) hd.setVisible(false);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
   ctx.fillStyle = M.def.void || '#141009'; ctx.fillRect(0, 0, cw, chh);
-  const fx = M.fx ?? M.px, fy = M.fy ?? M.py;
   const mw = M.W * ts, mh = M.H * ts;
   let camx = fx * ts + ts / 2 - cw / 2, camy = fy * ts + ts / 2 - chh / 2;
   camx = mw <= cw ? (mw - cw) / 2 : Math.max(0, Math.min(mw - cw, camx));
@@ -411,14 +478,10 @@ export function draw(now) {
   ctx.save(); ctx.translate(-Math.round(camx), -Math.round(camy));
   const x0 = Math.max(0, Math.floor(camx / ts) - 1), y0 = Math.max(0, Math.floor(camy / ts) - 1);
   const x1 = Math.min(M.W - 1, Math.ceil((camx + cw) / ts)), y1 = Math.min(M.H - 1, Math.ceil((camy + chh) / ts) + 2);
-  const t = now / 1000;
   if (M.def.image) {
     const im = img(M.def.image); if (ready(im)) ctx.drawImage(im, 0, 0, mw, mh); else { ctx.fillStyle = '#d8c8a0'; ctx.fillRect(0, 0, mw, mh); }
     for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (tile(x, y) === '.') { ctx.fillStyle = 'rgba(120,80,30,.55)'; ctx.beginPath(); ctx.arc(x * ts + ts / 2, y * ts + ts / 2, ts * 0.12, 0, 7); ctx.fill(); }
   } else {
-    const sig = M.rows.map(r => r.join('')).join('');
-    const wantP = Math.max(24, Math.floor(Math.min(96, M.ts * dpr, Math.sqrt(4.2e6 / (M.W * M.H)))));
-    if (!S.ground || sig !== lastTileSig || S.gP !== wantP || (!S.complete && S.need.filter(n => n.startsWith('map/tx_') || n.startsWith('map/strip_')).every(n => ready(img(n))))) { lastTileSig = sig; buildGround(); }
     const P = S.gP, sx = Math.max(0, camx / ts * P), sy = Math.max(0, camy / ts * P);
     const sw = Math.min(S.ground.width - sx, cw / ts * P), sh = Math.min(S.ground.height - sy, chh / ts * P);
     if (sw > 0 && sh > 0) ctx.drawImage(S.ground, sx, sy, sw, sh, sx / P * ts, sy / P * ts, sw / P * ts, sh / P * ts);
@@ -477,6 +540,70 @@ export function draw(now) {
   if (M.def.weather === 'heat') { ctx.fillStyle = 'rgba(255,190,60,.10)'; ctx.fillRect(0, 0, cw, chh); }
   if (M.def.weather === 'fog') drawFog(t);
   M.dirty = false;
+}
+// HD-2D 3D 投影 2D 銳利名牌與標記疊層
+function drawHD2DOverlay(now, fx, fy, ts, t) {
+  const fontFam = getComputedStyle(document.body).fontFamily;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (const i of M.inst) {
+    if (!visible(i)) continue;
+    const d = i.d, ty = d.type;
+    const dist = Math.abs(i.x - fx) + Math.abs(i.y - fy);
+    // 任務驚嘆號（始終在視野內醒目顯示）
+    if (ty === 'npc' && d.mark && dist <= 12) {
+      const h = sprH(d.img || 'n_villager');
+      const pt = hd.worldToScreen(i.x + 0.5, h + 0.25 + Math.sin(t * 4) * 0.08, i.y + 0.88);
+      if (pt && pt[0] > -40 && pt[0] < cw + 40 && pt[1] > -40 && pt[1] < chh + 40) {
+        ctx.font = `900 ${Math.max(22, Math.round(ts * 0.5))}px ${fontFam}`;
+        ctx.strokeStyle = '#2b1206'; ctx.lineWidth = 4;
+        ctx.strokeText('！', pt[0], pt[1]);
+        ctx.fillStyle = '#ffd858';
+        ctx.fillText('！', pt[0], pt[1]);
+      }
+    }
+    // 上鎖寶箱圖示
+    if (ty === 'chest' && d.locked && !flag('c:' + i.id) && dist <= 8) {
+      const pt = hd.worldToScreen(i.x + 0.72, 0.95, i.y + 0.88);
+      if (pt) {
+        ctx.font = `900 ${Math.max(15, Math.round(ts * 0.34))}px ${fontFam}`;
+        ctx.strokeStyle = '#2b1206'; ctx.lineWidth = 3;
+        ctx.strokeText('鎖', pt[0], pt[1]);
+        ctx.fillStyle = '#ffd858';
+        ctx.fillText('鎖', pt[0], pt[1]);
+      }
+    }
+    // 告示牌字樣
+    if (ty === 'sign' && dist <= 8) {
+      const pt = hd.worldToScreen(i.x + 0.5, 0.78, i.y + 0.88);
+      if (pt) {
+        ctx.font = `900 ${Math.max(14, Math.round(ts * 0.28))}px ${fontFam}`;
+        ctx.fillStyle = '#2a1608';
+        ctx.fillText(d.glyph || '告', pt[0], pt[1]);
+      }
+    }
+    // 名牌（古風黑漆金邊小匾額）
+    if ((d.name || d.label) && dist <= (ty === 'exit' ? 7 : 4.2)) {
+      const label = ty === 'exit' ? (d.label ? '往 ' + d.label : '') : d.name;
+      if (!label) continue;
+      const tall = instSprite(i) ? sprH(instSprite(i)) + 0.25 : (ty === 'exit' ? 1.15 : 1.1);
+      const pt = hd.worldToScreen(i.x + 0.5, tall, i.y + 0.88);
+      if (!pt || pt[0] < -80 || pt[0] > cw + 80 || pt[1] < -30 || pt[1] > chh + 30) continue;
+      ctx.font = `800 ${Math.max(15, Math.round(ts * 0.31))}px ${fontFam}`;
+      const w = ctx.measureText(label).width + 20, hgt = Math.max(26, ts * 0.48);
+      const lx = pt[0], ly = pt[1] - hgt * 0.45;
+      ctx.save();
+      ctx.shadowColor = 'rgba(0,0,0,.65)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 2;
+      ctx.fillStyle = ty === 'exit' ? 'rgba(128,24,16,.92)' : ty === 'foe' ? 'rgba(84,12,10,.92)' : 'rgba(18,14,10,.9)';
+      roundRect(lx - w / 2, ly - hgt / 2, w, hgt, 6); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = ty === 'exit' ? 'rgba(255,220,128,.95)' : ty === 'foe' ? 'rgba(255,112,80,.85)' : 'rgba(216,178,90,.82)';
+      ctx.lineWidth = 1.6; ctx.stroke();
+      ctx.fillStyle = '#fff8e6';
+      ctx.fillText(label, lx, ly + 1);
+      ctx.restore();
+    }
+  }
 }
 function drawWater(t, x0, y0, x1, y1, ts) {
   ctx.save(); ctx.lineCap = 'round';

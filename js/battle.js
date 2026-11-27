@@ -8,6 +8,7 @@ import { ARCHETYPES, BOSSES } from './data/enemies.js';
 import { url } from './assets.js';
 import { sfx, playMusic } from './audio.js';
 import { UI, applyItem, itemDesc } from './ui.js';
+import { BattleVFX } from './battle_fx.js';
 
 export const B = { cur: null }; // 測試用：目前戰鬥狀態
 
@@ -82,10 +83,14 @@ function delay(ms) { return sleep(G.s.settings.fast ? ms * 0.4 : ms); }
 function runBattle(foes, opts) {
   return new Promise(async (resolve) => {
     const root = $('#battle'); root.innerHTML = ''; root.hidden = false; UI.busy++;
-    root.style.backgroundImage = `url(${url(opts.bg || 'bg_yezhulin')})`;
+    const bgName = opts.bg || 'bg_yezhulin';
+    root.style.backgroundImage = `url(${url(bgName)})`;
     const allies = frontParty().map(heroActor);
     S = B.cur = { foes, allies, opts, round: 0, log: [], picking: null, over: false, auto: !!G.s.settings.auto };
+    const topEl = h('div', { class: 'b-top' });
     const logEl = h('div', { class: 'b-log' }, '');
+    const orderEl = h('div', { class: 'b-order', 'aria-hidden': 'true' });
+    topEl.append(logEl, orderEl);
     const foeEl = h('div', { class: 'b-foes' });
     const heroEl = h('div', { class: 'b-heroes' + (allies.length > 2 ? ' n' + allies.length : '') });
     const stage = h('div', { class: 'b-stage' }, foeEl, heroEl);
@@ -93,38 +98,43 @@ function runBattle(foes, opts) {
     const cmdEl = h('div', { class: 'b-cmds' });
     const fxEl = h('div', { class: 'fx' });
     const banner = h('div', { class: 'banner' });
-    root.append(logEl, stage, partyEl, cmdEl, fxEl, banner);
-    S.el = { logEl, foeEl, partyEl, cmdEl, fxEl, banner, root };
-    for (const f of foes) {
+    const cutinEl = h('div', { class: 'b-cutin', hidden: true });
+    root.append(topEl, stage, partyEl, cmdEl, fxEl, banner, cutinEl);
+    const vfx = new BattleVFX(root, bgName);
+    S.vfx = vfx;
+    S.el = { logEl, orderEl, foeEl, stage, partyEl, cmdEl, fxEl, banner, cutinEl, root };
+    foes.forEach((f, idx) => {
       // 好漢當頭目時用全身戰鬥立繪（鏡像，面向我方）
       const hb = f.img.startsWith('p_'), fimg = hb ? 'bf_' + f.img.slice(2) : f.img;
-      const im = h('img', { src: url(fimg), alt: f.name, style: f.tint ? `filter:${f.tint} drop-shadow(0 6px 8px rgba(0,0,0,.7))` : '' });
-      f.el = h('div', { class: 'foe' + (hb ? ' mirror' : '') + (f.big || (f.boss && foes.length === 1) ? ' big' : '') }, h('div', { class: 'st' }), im, h('div', { class: 'fn' }, f.name + (f.boss ? '' : ` Lv${f.lv}`)), h('div', { class: 'bar' }, h('i')));
+      const im = h('img', { src: url(fimg), alt: f.name, style: (f.tint ? `filter:${f.tint} drop-shadow(0 8px 14px rgba(0,0,0,.78));` : '') + `--idle-d:${-(idx * 0.7)}s` });
+      f.el = h('div', { class: 'foe' + (hb ? ' mirror' : '') + (f.big || (f.boss && foes.length === 1) ? ' big' : '') }, h('div', { class: 'st' }), im, h('div', { class: 'fn' }, f.name + (f.boss ? '' : ` Lv${f.lv}`)), h('div', { class: 'bar' }, h('b', { class: 'trail' }), h('i')));
       f.el.addEventListener('click', () => S.picking && S.picking('foe', f));
       foeEl.append(f.el);
-    }
-    for (const a of allies) {
+    });
+    allies.forEach((a, idx) => {
       const id = a.hero.id;
-      a.hf = h('div', { class: 'hf' }, h('img', { src: url('bf_' + id), alt: HEROES[id].name }));
+      a.hf = h('div', { class: 'hf' }, h('img', { src: url('bf_' + id), alt: HEROES[id].name, style: `--idle-d:${-(idx * 0.65 + 0.3)}s` }));
       a.hf.addEventListener('click', () => S.picking && S.picking('ally', a));
       heroEl.append(a.hf);
       a.el = h('div', { class: 'pc' }, h('img', { src: url(HEROES[id].img), alt: '' }), h('div', { class: 'pn' }, HEROES[id].name),
-        h('div', { class: 'nums' }), h('div', { class: 'bar' }, h('i')), h('div', { class: 'pst' }));
+        h('div', { class: 'nums' }), h('div', { class: 'bar' }, h('b', { class: 'trail' }), h('i')), h('div', { class: 'bar mp' }, h('i')), h('div', { class: 'pst' }));
       a.el.addEventListener('click', () => S.picking && S.picking('ally', a));
       partyEl.append(a.el);
-    }
+    });
     refresh();
     const names = [...new Set(foes.map(f => f.name))].join('、');
     log(opts.isBoss ? `${names} 擋住了去路！` : `遭遇 ${names}！`);
-    await delay(700);
+    await delay(650);
 
     let result = null;
     while (!result) {
       S.round++;
       const order = [...alive(allies), ...alive(foes)].map(a => ({ a, s: stat(a, 'spd') * rnd(0.85, 1.15) })).sort((x, y) => y.s - x.s).map(x => x.a);
-      for (const a of order) {
+      for (let oi = 0; oi < order.length; oi++) {
+        const a = order[oi];
         if (a.hp <= 0) continue;
         if (!alive(foes).length || !alive(allies).length) break;
+        renderOrder(order.slice(oi).filter(x => x.hp > 0));
         const skip = await startTurn(a);
         refresh();
         if (a.hp <= 0) continue;
@@ -160,6 +170,7 @@ function runBattle(foes, opts) {
     else if (result === 'lose') out = await defeat(opts);
     // 倒下的同伴以 1 點體力復活
     if (out !== 'retry') for (const x of activeParty()) if (x.hp <= 0) x.hp = 1;
+    vfx.destroy();
     root.hidden = true; root.innerHTML = ''; UI.busy--;
     S = B.cur = null;
     resolve(out);
@@ -168,11 +179,54 @@ function runBattle(foes, opts) {
 
 function log(msg) { if (!S) return; S.el.logEl.textContent = msg; S.log.push(msg); if (S.log.length > 60) S.log.shift(); }
 
+function renderOrder(list) {
+  if (!S || !S.el.orderEl) return;
+  const el = S.el.orderEl;
+  el.innerHTML = '';
+  list.slice(0, 6).forEach((a, i) => {
+    const src = a.isFoe ? url(a.img) : url(HEROES[a.hero.id].img);
+    el.append(h('div', { class: 'bo-it' + (a.isFoe ? ' foe' : ' ally') + (i === 0 ? ' now' : ''), title: a.name },
+      h('img', { src, alt: '' })));
+  });
+}
+
+function setCam(cls) {
+  if (!S || !S.el.stage) return;
+  S.el.stage.classList.remove('cam-hero', 'cam-foe', 'cam-impact');
+  if (cls) { void S.el.stage.offsetWidth; S.el.stage.classList.add(cls); }
+}
+
+async function playCutIn(a, skName) {
+  if (!S || !S.el.cutinEl || G.s.settings.fast) return;
+  const el = S.el.cutinEl;
+  const isHero = !a.isFoe;
+  const H = isHero ? HEROES[a.hero.id] : null;
+  const imgName = isHero ? 'bf_' + a.hero.id : (a.img.startsWith('p_') ? 'bf_' + a.img.slice(2) : a.img);
+  const seal = isHero ? (H.title || '梁山好漢') : (a.boss ? '強敵來襲' : '絕技');
+  el.innerHTML = '';
+  el.className = 'b-cutin ' + (isHero ? 'hero' : 'boss');
+  el.append(
+    h('div', { class: 'ci-bg' }),
+    h('img', { class: 'ci-art', src: url(imgName), alt: '' }),
+    h('div', { class: 'ci-txt' },
+      h('span', { class: 'ci-seal' }, seal),
+      h('strong', { class: 'ci-name' }, skName),
+      h('em', { class: 'ci-who' }, a.name))
+  );
+  el.hidden = false;
+  await delay(760);
+  el.classList.add('out');
+  await delay(220);
+  el.hidden = true;
+}
+
 function refresh() {
   if (!S) return;
   for (const f of S.foes) {
     f.el.classList.toggle('dead', f.hp <= 0);
-    f.el.querySelector('.bar i').style.width = Math.max(0, f.hp / f.mhp * 100) + '%';
+    const pct = Math.max(0, f.hp / f.mhp * 100) + '%';
+    f.el.querySelector('.bar i').style.width = pct;
+    const tr = f.el.querySelector('.bar .trail'); if (tr) tr.style.width = pct;
     const st = f.el.querySelector('.st'); st.innerHTML = '';
     for (const k of Object.keys(f.st)) if (f.st[k] > 0 && STATUS[k]) st.append(h('span', { style: `background:${STATUS[k].color}` }, STATUS[k].name));
     for (const b of f.buffs) st.append(h('span', null, (b.mult > 1 ? '↑' : '↓') + ({ atk: '攻', def: '防', spd: '速', eva: '閃', int: '智' }[b.stat] || '')));
@@ -180,7 +234,11 @@ function refresh() {
   for (const a of S.allies) {
     const m = maxStats(a.hero);
     a.el.querySelector('.nums').textContent = `體${Math.max(0, a.hero.hp)}/${m.hp} 氣${a.hero.mp}`;
-    a.el.querySelector('.bar i').style.width = Math.max(0, a.hero.hp / m.hp * 100) + '%';
+    const pct = Math.max(0, a.hero.hp / m.hp * 100) + '%';
+    const mpPct = Math.max(0, a.hero.mp / Math.max(1, m.mp) * 100) + '%';
+    a.el.querySelector('.bar:not(.mp) i').style.width = pct;
+    const tr = a.el.querySelector('.bar:not(.mp) .trail'); if (tr) tr.style.width = pct;
+    const mpi = a.el.querySelector('.bar.mp i'); if (mpi) mpi.style.width = mpPct;
     a.el.classList.toggle('dead', a.hero.hp <= 0);
     a.hf.classList.toggle('dead', a.hero.hp <= 0); a.hf.classList.toggle('turn', a.el.classList.contains('turn'));
     const st = a.el.querySelector('.pst'); st.innerHTML = '';
@@ -314,15 +372,25 @@ function foeAI(f) {
 }
 
 // ───── 執行行動 ─────
+const actorStageEl = x => x.isFoe ? x.el : (x.hf || x.el);
 async function perform(a, act) {
-  if (act.type === 'defend') { a.defending = true; log(`${a.name} 擺好架勢防禦。`); sfx('buff'); await delay(450); return; }
+  if (act.type === 'defend') {
+    a.defending = true; log(`${a.name} 擺好架勢防禦。`); sfx('buff');
+    S.vfx && S.vfx.play('buff', actorStageEl(a), [actorStageEl(a)]);
+    await delay(450); return;
+  }
   if (act.type === 'item') {
     const it = ITEMS[act.id]; give(act.id, -1);
     log(`${a.name} 使用了「${it.name}」。`);
     if (it.dmg) {
       sfx('fire'); flash('redf');
-      for (const t of act.t.filter(x => x.hp > 0)) { const d = Math.round(it.dmg * rnd(0.9, 1.1)); hurt(t, d, a); pop(t.el, '-' + d); }
+      const liveT = act.t.filter(x => x.hp > 0);
+      S.vfx && S.vfx.play('fire', actorStageEl(a), liveT.map(actorStageEl));
+      setCam('cam-impact');
+      for (const t of liveT) { const d = Math.round(it.dmg * rnd(0.9, 1.1)); hurt(t, d, a); pop(t.el, '-' + d); }
+      setTimeout(() => setCam(null), 360);
     } else {
+      S.vfx && S.vfx.play('heal', actorStageEl(a), act.t.map(actorStageEl));
       for (const t of act.t) {
         const before = t.hero.hp, bmp = t.hero.mp;
         applyItem(it, [t.hero]);
@@ -336,37 +404,58 @@ async function perform(a, act) {
   }
   const Sk = SKILLS[act.sk];
   if (!a.isFoe && Sk.mp) a.hero.mp -= Sk.mp;
-  if (act.sk !== 'attack') { showBanner(Sk.name); log(`${a.name}：「${Sk.name}」！`); }
-  else log(`${a.name} 發動攻擊。`);
-  if (a.isFoe) { a.el.classList.add('act'); setTimeout(() => a.el && a.el.classList.remove('act'), 400); }
-  else if (a.hf) { a.hf.classList.add('act'); setTimeout(() => a.hf && a.hf.classList.remove('act'), 450); }
-  await delay(act.sk === 'attack' ? 260 : 520);
+  // 主機級動態運鏡＋強招／頭目招式全螢幕水墨 Cut-in 特寫
+  const isSignature = act.sk !== 'attack' && ((!a.isFoe && ((Sk.mp || 0) >= 8 || ['big', 'thunder', 'water', 'arrow', 'magic'].includes(Sk.fx))) || (a.isFoe && a.boss));
+  if (act.sk !== 'attack') {
+    log(`${a.name}：「${Sk.name}」！`);
+    if (isSignature) await playCutIn(a, Sk.name);
+    else showBanner(Sk.name);
+  } else {
+    log(`${a.name} 發動攻擊。`);
+  }
+  setCam(a.isFoe ? 'cam-foe' : 'cam-hero');
+  if (a.isFoe) { a.el.classList.add('act'); setTimeout(() => a.el && a.el.classList.remove('act'), 420); }
+  else if (a.hf) { a.hf.classList.add('act'); setTimeout(() => a.hf && a.hf.classList.remove('act'), 460); }
+  await delay(act.sk === 'attack' ? 220 : 380);
   const fxs = { thunder: 'thunder', magic: 'thunder', fire: 'fire', water: 'water', arrow: 'arrow', heal: 'heal', buff: 'buff', debuff: 'debuff', big: 'crit', claw: 'hit', sweep: 'slash', multi: 'hit', chain: 'hit', thrust: 'slash', slash: 'slash' };
   sfx(fxs[Sk.fx] || 'hit');
   if (Sk.fx === 'thunder' || Sk.fx === 'magic') flash('thunder');
   else if (Sk.fx === 'big') flash('flash');
+  else if (Sk.fx === 'fire') flash('redf');
   if (act.sk.startsWith('t_')) sfx('roar');
 
   let targets = act.t.filter(x => Sk.kind === 'revive' ? x.hp <= 0 : x.hp > 0);
   if (!targets.length && (Sk.target === 'enemy')) { const pool = a.isFoe ? alive(S.allies) : alive(S.foes); if (pool.length) targets = [pick(pool)]; }
+
+  // 播放 Canvas 水墨與元素招式特效
+  if (S.vfx && targets.length) {
+    S.vfx.play(Sk.fx || 'slash', actorStageEl(a), targets.map(actorStageEl));
+  }
+
   switch (Sk.kind) {
     case 'phys': case 'mag': case 'steal': {
       const hits = Sk.hits || 1;
       for (let i = 0; i < hits; i++) {
         let tl = targets;
         if (Sk.rand) { const pool = a.isFoe ? alive(S.allies) : alive(S.foes); if (!pool.length) break; tl = [pick(pool)]; }
+        if (i > 0 && S.vfx) S.vfx.play(Sk.fx || 'slash', actorStageEl(a), tl.map(actorStageEl));
+        let anyCrit = false;
         for (const t of tl) {
           if (t.hp <= 0) continue;
           const r = calcDamage(a, t, Sk);
           if (r.miss) { pop(t.el, '落空', 'miss'); sfx('miss'); continue; }
           hurt(t, r.dmg, a);
           pop(t.el, (r.crit ? '暴擊 ' : '') + r.dmg, r.crit ? 'crit' : '');
-          if (r.crit) sfx('crit');
+          if (r.crit) { sfx('crit'); anyCrit = true; }
           if (Sk.st && t.hp > 0) applyStatus(t, Sk.st);
           if (Sk.kind === 'steal' && t.isFoe) await steal(a, t);
-          if (Sk.buff && Sk.kind !== 'debuff') {/* none */}
         }
-        if (hits > 1) await delay(230);
+        // 打擊停頓與震撼鏡頭
+        if (anyCrit || Sk.fx === 'big' || Sk.fx === 'thunder') {
+          setCam('cam-impact');
+          if (anyCrit) flash('flash');
+        }
+        if (hits > 1) await delay(220);
       }
       if (Sk.self) { const d = Math.round(stat(a, 'mhp') * Sk.self); a.hp = Math.max(1, a.hp - d); pop(a.el, '-' + d); }
       break;
@@ -398,6 +487,7 @@ async function perform(a, act) {
       break;
     }
   }
+  setTimeout(() => setCam(null), 260);
   // 頭目狂暴
   for (const f of S.foes) if (f.enrage && !f.enraged && f.hp > 0 && f.hp < f.mhp * f.enrage[0]) {
     f.enraged = true; await delay(300); showBanner('狂暴'); log(f.enrage[1]); sfx(f.kind === 'beast' ? 'roar' : 'gong'); flash('redf'); await delay(1100);
