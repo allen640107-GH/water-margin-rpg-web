@@ -34,6 +34,54 @@ HERO_CFG = {
             [(1, 0, True),  (1, 1, True),  (1, 2, False)],
         ]
     },
+    'chaogai': {
+        'rows': [
+            [(0, 0, False), (0, 1, False), (0, 2, False)],
+            [(1, 0, False), (1, 1, False), (1, 2, False)],
+            [(2, 0, False), (2, 1, False), (2, 2, False)],
+            [(1, 0, True),  (1, 1, True),  (1, 2, True)],
+        ]
+    },
+    'wuyong': {
+        'rows': [
+            [(0, 0, False), (0, 0, False), (0, 2, False)],
+            [(1, 0, True),  (1, 1, False), (1, 2, False)],
+            [(2, 0, False), (2, 1, False), (2, 2, False)],
+            [(1, 0, False), (1, 1, True),  (1, 2, True)],
+        ]
+    },
+    'gongsunsheng': {
+        'rows': [
+            [(0, 0, False), (0, 0, False), (0, 0, True)],
+            [(1, 0, False), (1, 1, False), (1, 2, False)],
+            [(2, 0, False), (2, 1, False), (2, 2, False)],
+            [(1, 0, True),  (1, 1, True),  (1, 2, True)],
+        ]
+    },
+    'songjiang': {
+        'rows': [
+            [(0, 0, False), (0, 1, False), (0, 2, False)],
+            [(1, 0, False), (1, 1, False), (1, 2, False)],
+            [(2, 0, False), (2, 1, False), (2, 2, False)],
+            [(1, 0, True),  (1, 1, True),  (1, 2, True)],
+        ]
+    },
+    'likui': {
+        'rows': [
+            [(0, 0, False), (0, 1, False), (0, 2, False)],
+            [(1, 0, True),  (1, 1, False), (1, 2, False)],
+            [(2, 0, False), (2, 1, False), (2, 2, False)],
+            [(1, 0, False), (1, 1, True),  (1, 2, True)],
+        ]
+    },
+    'huarong': {
+        'rows': [
+            [(0, 0, False), (0, 1, False), (0, 2, False)],
+            [(1, 0, False), (1, 1, False), (1, 2, False)],
+            [(2, 0, False), (2, 1, False), (2, 2, False)],
+            [(1, 0, True),  (1, 1, True),  (1, 2, True)],
+        ]
+    },
 }
 
 def remove_white_bg(im: Image.Image) -> Image.Image:

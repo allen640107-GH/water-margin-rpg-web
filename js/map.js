@@ -263,7 +263,11 @@ const SOFT = ['~', 's', '.', ',', 'K', '*', ':', '_'];   // 柔邊，自下而�
 const HARD = ['^', 'W', 'D'];
 const FALLBACK = { ',': '#7d9a5a', '.': '#a98b5e', ':': '#9a9a96', '_': '#6a4a2a', '*': '#e8eef4', 's': '#d8c070', '~': '#5d8fa8', '^': '#7a7670', 'K': '#3f5a2c', 'W': '#4a4846', 'D': '#2a1a10' };
 // 角色比例（相對格高：高精細寫實比例主角略高挺拔）
-const SPR_H = { n_child: 1.12, e_dog: 1.05, e_wolf: 1.2, e_boar: 1.2, e_leopard: 1.2, e_snake: 0.95, b_tiger: 1.8, linchong: 1.72, wusong: 1.74, likui: 1.76, luzhishen: 1.82, b_jiangmenshen: 1.78, b_luantingyu: 1.74, b_zhubiao: 1.7 };
+const SPR_H = {
+  n_child: 1.12, e_dog: 1.05, e_wolf: 1.2, e_boar: 1.2, e_leopard: 1.2, e_snake: 0.95, b_tiger: 1.8,
+  linchong: 1.72, wusong: 1.74, luzhishen: 1.82, chaogai: 1.78, wuyong: 1.7, gongsunsheng: 1.74, songjiang: 1.7, likui: 1.82, huarong: 1.74,
+  b_jiangmenshen: 1.78, b_luantingyu: 1.74, b_zhubiao: 1.7,
+};
 const PROPS = new Set(['tree_pine', 'tree_willow', 'tree_broad', 'tree_snowpine', 'tree_bamboo', 'tree_poplar', 'chest', 'chest_open', 'boulder', 'rock', 'bush', 'reeds', 'signpost', 'lantern', 'well', 'haystack', 'jars', 'cart', 'statue']);
 const mimg = n => img('map/' + n);
 export const sprName = im => (im || '').replace(/^p_/, '');
