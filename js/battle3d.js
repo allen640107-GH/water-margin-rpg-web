@@ -1,7 +1,7 @@
 // FF7 / FF8 風格 3D 電影運鏡戰鬥舞台、動態攝影機導演與 3D 招式特效引擎（Three.js）
 import * as THREE from './vendor/three.module.min.js';
 import { img, ready } from './assets.js';
-import { createBattleUnitModel, animateBattleRig } from './battle_models.js';
+import { createBattleUnitModel, animateBattleRig, createAfterimageMesh } from './battle_models.js';
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
@@ -94,6 +94,8 @@ export class Battle3DStage {
       this.introT = 0;
       this.shake = 0;
       this.dimSky = 0;
+      this.hitStop = 0;      // 主機級打擊頓幀（Hit-Stop）秒數
+      this.afterimages = []; // 3D 衝刺與必殺殘影佇列
       this.t = 0;
       this.lastNow = performance.now();
 
@@ -212,12 +214,12 @@ export class Battle3DStage {
     // 我方好漢站位（右側斜列，FF7/FF8 經典陣型！）
     const an = this.allies.length;
     this.allies.forEach((a, i) => {
-      const rig = createBattleUnitModel(a);
+      const rig = createBattleUnitModel(a, this.biome);
       const frac = an === 1 ? 0 : (i / (an - 1) - 0.5);
-      const x = 3.55 + Math.abs(frac) * 0.55;
-      const z = frac * Math.min(4.6, (an - 1) * 1.85) + 0.35;
+      const x = 3.55 + Math.abs(frac) * 0.65;
+      const z = frac * Math.min(4.8, (an - 1) * 1.95) + 0.35;
       rig.homePos.set(x, 0, z);
-      rig.homeRotY = -Math.PI * 0.55;
+      rig.homeRotY = -Math.PI * 0.18;
       rig.root.position.copy(rig.homePos);
       rig.root.rotation.y = rig.homeRotY;
       rig.root.userData.actor = a;
@@ -228,12 +230,12 @@ export class Battle3DStage {
     // 敵方／頭目站位（左側弧陣，正對我方！）
     const fn = this.foes.length;
     this.foes.forEach((f, i) => {
-      const rig = createBattleUnitModel(f);
+      const rig = createBattleUnitModel(f, this.biome);
       const frac = fn === 1 ? 0 : (i / (fn - 1) - 0.5);
-      const x = -3.6 - Math.abs(frac) * 0.6;
-      const z = frac * Math.min(5.2, (fn - 1) * 2.15) - 0.2;
+      const x = -3.65 - Math.abs(frac) * 0.65;
+      const z = frac * Math.min(5.2, (fn - 1) * 2.2) - 0.15;
       rig.homePos.set(x, 0, z);
-      rig.homeRotY = Math.PI * 0.55;
+      rig.homeRotY = Math.PI * 0.18;
       rig.root.position.copy(rig.homePos);
       rig.root.rotation.y = rig.homeRotY;
       rig.root.userData.actor = f;
@@ -315,7 +317,14 @@ export class Battle3DStage {
     return best;
   }
 
-  // ── FF7/FF8 電影級攻擊演出（衝刺→運鏡特寫→揮斬/法術 3D 特效→擊中回呼→跳回） ──
+  spawnAfterimage(rig, colorHex) {
+    if (!this.ok || !rig) return;
+    const ai = createAfterimageMesh(rig, colorHex);
+    this.scene.add(ai.mesh);
+    this.afterimages.push({ ...ai, life: 0, dur: 0.34 });
+  }
+
+  // ── FF7/FF8 電影級攻擊演出（衝刺殘影→運鏡特寫→多關節揮斬＋打擊頓幀→躍起跳回） ──
   async playAction(attacker, targets, fxType, opts = {}, onImpact = null) {
     if (!this.ok) { if (onImpact) await onImpact(); return; }
     const rig = this.units.get(attacker);
@@ -328,54 +337,55 @@ export class Battle3DStage {
     const tPos = mainT ? mainT.root.position.clone() : new THREE.Vector3(attacker.isFoe ? 3.5 : -3.5, 0, 0);
 
     this.camMode = 'custom';
+    const trailCol = attacker.isFoe ? 0xff5a38 : 0xffdc78;
 
     if (isMelee && mainT) {
-      // 1) 攝影機切至側後方電影追蹤角＋角色跨過 3D 戰場衝刺到敵人面前！
-      const stopPos = tPos.clone().add(new THREE.Vector3(attacker.isFoe ? -1.45 : 1.45, 0, 0));
-      this.wantPos.set(stopPos.x + (attacker.isFoe ? 3.2 : 2.6), 2.55, stopPos.z + 4.8);
-      this.wantLook.set((stopPos.x + tPos.x) * 0.5, 1.18, tPos.z);
+      // 1) 電影側角追蹤＋角色跨過 3D 戰場衝刺並留下 3D 水墨金光殘影！
+      const stopPos = tPos.clone().add(new THREE.Vector3(attacker.isFoe ? -1.6 : 1.6, 0, 0));
+      this.wantPos.set(stopPos.x + (attacker.isFoe ? 2.4 : 2.1), 2.55, stopPos.z + 5.6);
+      this.wantLook.set((stopPos.x + tPos.x) * 0.5, 1.25, tPos.z);
 
       rig.state = 'run'; rig.stateT = 0;
-      rig.root.lookAt(tPos.x, 0, tPos.z);
-      await this.tweenPos(rig.root.position, rig.homePos, stopPos, 280 * spd);
+      await this.tweenPos(rig.root.position, rig.homePos, stopPos, 280 * spd, 0.14, rig, trailCol);
 
-      // 2) 揮斬／突刺動作＋3D 刀光特效
+      // 2) 多關節揮斬／飛撲＋3D 刀光特效＋65ms 主機級打擊頓幀（Hit-Stop）！
       rig.state = 'attack'; rig.stateT = 0;
-      await sleep(150 * spd);
+      await sleep(145 * spd);
+      this.spawnAfterimage(rig, trailCol);
       this.spawn3DFX(fxType, rig.root.position, targets.map(t => this.units.get(t)?.root.position).filter(Boolean));
-      this.shake = fxType === 'big' ? 0.45 : 0.24;
+      this.hitStop = fast ? 0.025 : (fxType === 'big' ? 0.085 : 0.055);
+      this.shake = fxType === 'big' ? 0.48 : 0.26;
       for (const t of targets) {
         const tr = this.units.get(t);
         if (tr) { tr.state = 'hit'; tr.stateT = 0; tr.hitFlash = 1.0; }
       }
       if (onImpact) await onImpact();
-      await sleep(240 * spd);
+      await sleep(250 * spd);
 
-      // 3) 躍起後空翻／撤步返回原位
+      // 3) 輕功後躍返回陣位
       rig.state = 'run'; rig.stateT = 0;
-      await this.tweenPos(rig.root.position, stopPos, rig.homePos, 240 * spd, 0.85);
-      rig.root.rotation.y = rig.homeRotY;
+      await this.tweenPos(rig.root.position, stopPos, rig.homePos, 240 * spd, 0.92, rig, trailCol);
       rig.state = attacker.hp > 0 ? 'idle' : 'dead';
     } else {
-      // 遠程弓箭／道術雷火／全體必殺／治療：FF8 經典低角特寫施法！
+      // 遠程弓箭／道術雷火／全體必殺／治療：FF8 低角特寫施法！
       const sign = attacker.isFoe ? -1 : 1;
-      this.wantPos.set(rig.homePos.x + sign * 2.2, 2.1, rig.homePos.z + 3.6);
-      this.wantLook.set(rig.homePos.x, 1.35, rig.homePos.z);
+      this.wantPos.set(rig.homePos.x + sign * 1.4, 2.2, rig.homePos.z + 4.4);
+      this.wantLook.set(rig.homePos.x, 1.38, rig.homePos.z);
       rig.state = fxType === 'arrow' ? 'attack' : 'cast';
       rig.stateT = 0;
-      if (['thunder', 'magic', 'big', 'fire'].includes(fxType)) this.dimSky = 0.55;
+      if (['thunder', 'magic', 'big', 'fire'].includes(fxType)) this.dimSky = 0.58;
       await sleep(320 * spd);
 
-      // 鏡頭拉向目標群展現 3D 招式爆發！
       const cx = targets.reduce((s, t) => s + (this.units.get(t)?.root.position.x || 0), 0) / Math.max(1, targets.length);
       const cz = targets.reduce((s, t) => s + (this.units.get(t)?.root.position.z || 0), 0) / Math.max(1, targets.length);
-      this.wantPos.set(cx + 3.6, 3.6, cz + 6.4);
-      this.wantLook.set(cx, 1.2, cz);
+      this.wantPos.set(cx + 2.8, 3.4, cz + 6.8);
+      this.wantLook.set(cx, 1.25, cz);
 
       const tPositions = targets.map(t => this.units.get(t)?.root.position).filter(Boolean);
       this.spawn3DFX(fxType, rig.root.position, tPositions);
       if (!['heal', 'buff'].includes(fxType)) {
-        this.shake = ['big', 'thunder', 'fire'].includes(fxType) ? 0.52 : 0.25;
+        this.hitStop = fast ? 0.025 : (['big', 'thunder', 'fire'].includes(fxType) ? 0.08 : 0.045);
+        this.shake = ['big', 'thunder', 'fire'].includes(fxType) ? 0.54 : 0.26;
         for (const t of targets) {
           const tr = this.units.get(t);
           if (tr) { tr.state = 'hit'; tr.stateT = 0; tr.hitFlash = 1.0; }
@@ -387,7 +397,6 @@ export class Battle3DStage {
       rig.state = attacker.hp > 0 ? 'idle' : 'dead';
     }
 
-    // 恢復目標與攝影機待命態
     for (const t of targets) {
       const tr = this.units.get(t);
       if (tr && tr.state === 'hit') tr.state = t.hp > 0 ? 'idle' : 'dead';
@@ -405,15 +414,20 @@ export class Battle3DStage {
     }
   }
 
-  tweenPos(targetVec, from, to, durMs, arcH = 0) {
+  tweenPos(targetVec, from, to, durMs, arcH = 0, trailRig = null, trailCol = 0xffdc78) {
     return new Promise(res => {
       const t0 = performance.now();
+      let ghostCount = 0;
       const step = () => {
         if (!this.alive) return res();
         const k = clamp((performance.now() - t0) / Math.max(16, durMs), 0, 1);
         const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
         targetVec.lerpVectors(from, to, e);
         targetVec.y = arcH ? Math.sin(k * Math.PI) * arcH : 0;
+        if (trailRig && k > 0.18 + ghostCount * 0.26 && ghostCount < 3) {
+          ghostCount++;
+          this.spawnAfterimage(trailRig, trailCol);
+        }
         if (k < 1) requestAnimationFrame(step);
         else { targetVec.copy(to); targetVec.y = 0; res(); }
       };
@@ -507,13 +521,33 @@ export class Battle3DStage {
 
   loop(now) {
     if (!this.alive) return;
-    const dt = Math.min(0.05, (now - this.lastNow) / 1000);
+    const rawDt = Math.min(0.05, (now - this.lastNow) / 1000);
     this.lastNow = now;
+
+    // 主機級 Hit-Stop 打擊頓幀：命中瞬間定格角色動畫與粒子，保留攝影機震動製造強烈打擊重量感！
+    let dt = rawDt;
+    if (this.hitStop > 0) {
+      this.hitStop = Math.max(0, this.hitStop - rawDt);
+      dt = rawDt * 0.06;
+    }
     this.t += dt;
 
-    // 1) 驅動所有 3D 角色與猛獸骨架動畫
+    // 1) 驅動所有 2.5D 多關節蒙皮彩繪角色與猛獸動畫
     for (const rig of this.units.values()) {
-      animateBattleRig(rig, dt, this.t);
+      animateBattleRig(rig, dt, this.t, this.camera);
+    }
+
+    // 1b) 更新 3D 衝刺殘影淡出
+    for (let i = this.afterimages.length - 1; i >= 0; i--) {
+      const ai = this.afterimages[i];
+      ai.life += rawDt;
+      if (ai.life >= ai.dur) {
+        this.scene.remove(ai.mesh);
+        ai.mat.dispose();
+        this.afterimages.splice(i, 1);
+      } else {
+        ai.uniforms.uAlpha.value = (1 - ai.life / ai.dur) * 0.45;
+      }
     }
 
     // 2) 驅動火盆、指標、3D 特效與場景粒子
@@ -557,24 +591,24 @@ export class Battle3DStage {
       this.domeMat.color.setRGB(nc, nc * 0.97, nc * 0.92);
     }
 
-    // 3) FF8 經典 3/4 斜角英雄電影運鏡（能同時看到我方正面臉部甲冑兵器與敵方猛獸陣型！）
+    // 3) FF8 經典寬銀幕 3/4 電影運鏡（完整收錄 4 名我方好漢與敵方陣型，不切邊！）
     const portrait = this.h > this.w;
     if (this.camMode === 'intro') {
       this.introT += dt;
       const k = clamp(this.introT / 0.88, 0, 1);
       const e = 1 - Math.pow(1 - k, 3);
-      const basePos = portrait ? new THREE.Vector3(2.2, 4.4, 12.2) : new THREE.Vector3(2.4, 3.15, 9.6);
-      this.camPos.lerpVectors(new THREE.Vector3(-4.5, 2.3, 10.6), basePos, e);
-      this.camLook.lerpVectors(new THREE.Vector3(-2.4, 1.2, 0), new THREE.Vector3(-0.2, 1.18, 0.1), e);
+      const basePos = portrait ? new THREE.Vector3(1.2, 4.6, 13.4) : new THREE.Vector3(1.2, 3.35, 11.2);
+      this.camPos.lerpVectors(new THREE.Vector3(-4.8, 2.4, 11.4), basePos, e);
+      this.camLook.lerpVectors(new THREE.Vector3(-2.0, 1.2, 0), new THREE.Vector3(0.0, 1.2, 0.1), e);
       if (k >= 1) this.camMode = 'idle';
     } else if (this.camMode === 'idle') {
-      const basePos = portrait ? new THREE.Vector3(2.2, 4.4, 12.2) : new THREE.Vector3(2.4, 3.15, 9.6);
+      const basePos = portrait ? new THREE.Vector3(1.2, 4.6, 13.4) : new THREE.Vector3(1.2, 3.35, 11.2);
       this.wantPos.set(
-        basePos.x + Math.sin(this.t * 0.36) * 0.9,
+        basePos.x + Math.sin(this.t * 0.36) * 0.85,
         basePos.y + Math.sin(this.t * 0.52) * 0.2,
-        basePos.z + Math.cos(this.t * 0.36) * 0.55
+        basePos.z + Math.cos(this.t * 0.36) * 0.5
       );
-      this.wantLook.set(-0.2, 1.18, 0.1);
+      this.wantLook.set(0.0, 1.2, 0.1);
       const a = 1 - Math.exp(-4.5 * dt);
       this.camPos.lerp(this.wantPos, a);
       this.camLook.lerp(this.wantLook, a);

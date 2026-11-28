@@ -66,6 +66,19 @@ button { font: inherit; font-weight: 800; color: inherit; cursor: pointer; touch
 }
 .dp:active, .dp.on { background: linear-gradient(180deg, var(--red2), var(--red)); border-color: var(--gold2); transform: scale(.93); }
 .dp.du { left: 52px; top: 0; } .dp.dd { left: 52px; bottom: 0; } .dp.dl { left: 0; top: 52px; } .dp.dr { right: 0; top: 52px; }
+#btn-run {
+  position: absolute; right: calc(112px + env(safe-area-inset-right, 0px)); bottom: calc(24px + var(--safe-b));
+  width: 64px; height: 64px; border-radius: 50%;
+  border: 2px solid var(--gold);
+  background: radial-gradient(circle at 35% 28%, rgba(44,36,26,.88), rgba(16,12,8,.9));
+  box-shadow: 0 4px 14px rgba(0,0,0,.6);
+  color: var(--gold2); font-family: var(--serif); font-size: .95em;
+}
+#btn-run.on {
+  background: radial-gradient(circle at 35% 28%, #d9a038, #8c5c12);
+  border-color: #fff3c4; color: #1b1208;
+  box-shadow: 0 0 16px rgba(244,210,110,.75), 0 4px 14px rgba(0,0,0,.6);
+}
 #btn-act {
   position: absolute; right: calc(16px + env(safe-area-inset-right, 0px)); bottom: calc(38px + var(--safe-b));
   width: 86px; height: 86px; border-radius: 50%;

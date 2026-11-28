@@ -12,8 +12,9 @@ import { MAPS, SCRIPTS, QUESTS, CHAPTERS } from './data/world.js';
 import { ITEMS } from './data/items.js';
 import { HEROES } from './data/heroes.js';
 import { BOSSES } from './data/enemies.js';
+import { pollGamepad } from './gamepad.js';
 
-const VERSION = '3.0.0 HD-2D';
+const VERSION = '3.2.0 HD-2D';
 let scriptDepth = 0, inGame = false, lastPos = null;
 
 // ───── 劇本 API ─────
@@ -72,8 +73,13 @@ async function doBattle(spec, opts = {}) {
 }
 
 // ───── 地圖事件 ─────
+let gpDir = null, gpSprint = false, keySprint = false, touchSprint = false;
+let actBufUntil = 0; // 輸入緩衝（140ms）：剛邁步還沒落腳就按調查，落腳瞬間立即觸發！
+const currentHeldDir = () => (padDir != null ? padDir : gpDir != null ? gpDir : held.size ? [...held].pop() : null);
+
 Object.assign(MAPH, {
   busy,
+  heldDir: currentHeldDir,
   interact: i => { if (!busy()) interact(i); },
   stepOn: i => stepOn(i),
   onPlates: () => checkPlates(),
@@ -299,14 +305,21 @@ function act() {
 function stepNow(d) { if (inGame && M.def && !M.moving && !busy()) { lastPos = [M.px, M.py]; tryStep(d); } }
 function bindInput() {
   window.addEventListener('keydown', e => {
+    if (e.key === 'Shift') { keySprint = true; return; }
     if (!inGame) return;
     if (e.code in KEYS) { held.add(KEYS[e.code]); M.path = []; M.dest = null; e.preventDefault(); if (!e.repeat) stepNow(KEYS[e.code]); return; }
     if (busy()) return;
-    if (e.key === 'Enter' || e.key === ' ' || e.key === 'z' || e.key === 'Z') { e.preventDefault(); act(); }
-    else if (e.key === 'Escape' || e.key === 'm' || e.key === 'M') { e.preventDefault(); openMenu(); }
+    if (e.key === 'Enter' || e.key === ' ' || e.key === 'z' || e.key === 'Z') {
+      e.preventDefault();
+      if (M.moving) actBufUntil = performance.now() + 160;
+      else act();
+    } else if (e.key === 'Escape' || e.key === 'm' || e.key === 'M') { e.preventDefault(); openMenu(); }
   });
-  window.addEventListener('keyup', e => { if (e.code in KEYS) held.delete(KEYS[e.code]); });
-  window.addEventListener('blur', () => { held.clear(); padDir = null; });
+  window.addEventListener('keyup', e => {
+    if (e.key === 'Shift') keySprint = false;
+    if (e.code in KEYS) held.delete(KEYS[e.code]);
+  });
+  window.addEventListener('blur', () => { held.clear(); padDir = null; keySprint = false; });
   const cv = $('#map');
   cv.addEventListener('pointerup', e => {
     if (busy()) return;
@@ -322,23 +335,57 @@ function bindInput() {
     b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('lostpointercapture', up);
     b.addEventListener('contextmenu', e => e.preventDefault());
   }
-  $('#btn-act').addEventListener('click', act);
+  $('#btn-act').addEventListener('click', () => { if (M.moving) actBufUntil = performance.now() + 160; else act(); });
+  const runBtn = $('#btn-run');
+  if (runBtn) {
+    runBtn.addEventListener('click', () => {
+      sfx('click'); touchSprint = !touchSprint; runBtn.classList.toggle('on', touchSprint);
+    });
+  }
   $('#btn-menu').addEventListener('click', () => { if (!busy()) { sfx('click'); openMenu(); } });
   $('#btn-mute').addEventListener('click', () => { setMuted(!isMuted()); resume(); syncMute(); });
   window.addEventListener('resize', () => { resize(); });
   document.addEventListener('gesturestart', e => e.preventDefault());
 }
 
-// ───── 主迴圈 ─────
+// ───── 主迴圈（含 Web Gamepad API 手把輪詢、疾走與輸入緩衝） ─────
+const gpHandlers = {
+  onConnect: () => toast('已偵測到遊戲手把（左搖桿移動、A 調查、按住 B 疾走、Start 選單）', 2600),
+  onConfirm: () => {
+    if (!document.querySelector('#intro').hidden) { const sk = $('#intro .iskip'); sk && sk.click(); return; }
+    if (!document.querySelector('#title').hidden) { const b = $('#t-cont') || $('#t-new'); b && b.click(); return; }
+    if (advanceDialog()) return;
+    if (B.cur) { const b = $('.b-res button') || $('.b-cmds button:not(:disabled)'); b && b.click(); return; }
+    if (!busy()) { if (M.moving) actBufUntil = performance.now() + 160; else act(); }
+  },
+  onCancel: () => {
+    if (B.cur && B.cur.auto && B.cur.toggleAuto) { B.cur.toggleAuto(false); return; }
+    if (!$('#menu').hidden && $('#menu')._close) { $('#menu')._close(); return; }
+    if (!$('#panel').hidden && $('#panel')._close) { $('#panel')._close(); return; }
+  },
+  onAutoOrAlt: () => {
+    if (B.cur && B.cur.toggleAuto) B.cur.toggleAuto();
+  },
+  onMenu: () => {
+    if (!$('#menu').hidden && $('#menu')._close) { $('#menu')._close(); return; }
+    if (inGame && !busy()) { sfx('click'); openMenu(); }
+  },
+};
 let lastT = performance.now(), lastDraw = 0, lastBusy = false;
 function loop(now) {
   const dt = Math.min(1000, now - lastT); lastT = now;
+  const gp = pollGamepad(gpHandlers);
+  gpDir = gp.dir; gpSprint = gp.sprint;
+  M.sprint = !!(keySprint || gpSprint || touchSprint);
   if (inGame && G.s && !document.hidden) G.s.playMs += dt;
   const bz = inGame && busy(); if (bz !== lastBusy) { document.body.classList.toggle('busy', bz); lastBusy = bz; }
   if (inGame && M.def) {
     if (!M.moving && !busy()) {
-      const dir = padDir != null ? padDir : held.size ? [...held].pop() : null;
-      if (dir != null) { lastPos = [M.px, M.py]; tryStep(dir); }
+      if (actBufUntil > now) { actBufUntil = 0; act(); }
+      else {
+        const dir = currentHeldDir();
+        if (dir != null) { lastPos = [M.px, M.py]; tryStep(dir); }
+      }
     } else if (!M.moving) lastPos = [M.px, M.py];
     if (M.moving && !lastPos) lastPos = [M.px, M.py];
     update(now);

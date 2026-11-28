@@ -7,8 +7,8 @@ import { ARCHETYPES, BOSSES } from './data/enemies.js';
 import { sfx } from './audio.js';
 import { HD2DRenderer } from './map3d.js';
 
-export const M = { id: null, def: null, W: 0, H: 0, rows: [], inst: [], px: 0, py: 0, moving: false, path: [], dirty: true, ts: 48, cam: [0, 0], dest: null, t0: 0 };
-export const MAPH = {}; // main.js 提供：interact(inst), stepOn(inst), onPlates(), busy()
+export const M = { id: null, def: null, W: 0, H: 0, rows: [], inst: [], px: 0, py: 0, moving: false, sprint: false, path: [], dirty: true, ts: 48, cam: [0, 0], dest: null, t0: 0 };
+export const MAPH = {}; // main.js 提供：interact(inst), stepOn(inst), onPlates(), busy(), heldDir()
 
 const TILECH = new Set(',.:_*s~=F^#R+rTxo'.split(''));
 const SOLID_T = new Set(['#', 'R', '^', 'T', 'F', '~', 'r', ' ']);
@@ -130,7 +130,7 @@ export function walkable(x, y, forPath = false) {
 
 // ───── 移動 ─────
 const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
-export function tryStep(dir) {
+export function tryStep(dir, overshoot = 0) {
   if (M.moving) return false;
   G.s.dir = dir;
   const [dx, dy] = DIRS[dir]; const nx = M.px + dx, ny = M.py + dy;
@@ -148,32 +148,44 @@ export function tryStep(dir) {
     return false;
   }
   M.trail.unshift([M.px, M.py, G.s.dir]); if (M.trail.length > 6) M.trail.length = 6;
-  animateTo(nx, ny);
+  animateTo(nx, ny, overshoot);
   return true;
 }
-function animateTo(nx, ny) {
-  M.moving = true; const sx = M.px, sy = M.py, t0 = performance.now(), dur = 125;
+function animateTo(nx, ny, overshootMs = 0) {
+  M.moving = true;
+  const sx = M.px, sy = M.py;
+  const dur = M.sprint ? 82 : 122;
+  const t0 = performance.now() - Math.min(overshootMs, dur * 0.45);
   M.anim = { sx, sy, nx, ny, t0, dur };
 }
 export function update(now) {
   if (M.anim) {
-    const a = M.anim, k = Math.min(1, (now - a.t0) / a.dur);
-    M.fx = a.sx + (a.nx - a.sx) * k; M.fy = a.sy + (a.ny - a.sy) * k; M.dirty = true;
+    const a = M.anim, elapsed = now - a.t0, k = Math.min(1, elapsed / a.dur);
+    // 單步時柔和緩動，連續按住方向時保持等速零卡頓滑行！
+    const cont = !!(M.path.length || (MAPH.heldDir && MAPH.heldDir() != null));
+    const ek = cont ? k : (k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2);
+    M.fx = a.sx + (a.nx - a.sx) * ek; M.fy = a.sy + (a.ny - a.sy) * ek; M.dirty = true;
     if (k >= 1) {
+      const overshoot = Math.max(0, elapsed - a.dur);
       M.anim = null; M.px = a.nx; M.py = a.ny; M.fx = M.px; M.fy = M.py; M.moving = false;
       G.s.x = M.px; G.s.y = M.py; G.s.steps++;
       const i = M.inst.find(j => j.x === M.px && j.y === M.py && visible(j));
       if (i && MAPH.stepOn) { M.path = []; M.dest = null; MAPH.stepOn(i); }
-      else if (M.path.length) nextPathStep();
-      else M.dest = null;
+      else if (M.path.length) nextPathStep(overshoot);
+      else if (MAPH.heldDir && !(MAPH.busy && MAPH.busy())) {
+        // 零停頓連貫跨格：按住方向鍵／搖桿直接吃掉多餘影格時間無縫邁出下一步！
+        const hd = MAPH.heldDir();
+        if (hd != null && tryStep(hd, overshoot)) return;
+        M.dest = null;
+      } else M.dest = null;
     }
   } else { M.fx = M.px; M.fy = M.py; }
 }
-function nextPathStep() {
+function nextPathStep(overshoot = 0) {
   if (MAPH.busy && MAPH.busy()) { M.path = []; return; }
   const [x, y] = M.path.shift();
   const dir = DIRS.findIndex(([dx, dy]) => dx === x - M.px && dy === y - M.py);
-  if (dir < 0 || !tryStep(dir)) { M.path = []; M.dest = null; }
+  if (dir < 0 || !tryStep(dir, overshoot)) { M.path = []; M.dest = null; }
   if (!M.path.length && M.pendingInteract && !M.moving) { const pi = M.pendingInteract; M.pendingInteract = null; faceAndInteract(pi); }
 }
 function faceAndInteract(i) {

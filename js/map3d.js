@@ -427,6 +427,8 @@ export class HD2DRenderer {
     this.boatGroup = null;
     this.destRing = null;
     this.worldImgMesh = null;
+    this.worldClouds = null;
+    this.sunbeams = null;
     this.camInit = false;
   }
 
@@ -498,10 +500,11 @@ export class HD2DRenderer {
     this.heroLight.position.set(M.px + 0.5, 1.4, M.py + 0.5);
     this.lightGroup.add(this.heroLight);
 
-    // ── 世界地圖特殊處理（古卷軸俯視光影） ──
+    // ── 世界地圖特殊處理（立體古風沙盤＋3D 飄雲＋金色驛道＋神光） ──
     if (def.image) {
       this.buildImageMap(M, def);
       this.buildParticles(M, 'motes', isNight);
+      this.buildSunbeams(M, false);
       return;
     }
 
@@ -543,9 +546,12 @@ export class HD2DRenderer {
     // ── 5) 立體樹木與蘆葦 ──
     this.buildFoliage(M, S);
 
-    // ── 6) 3D 氣候與氛圍粒子 ──
+    // ── 6) 3D 氣候與氛圍粒子＋日間斜射耶穌光束（Volumetric Sunbeams） ──
     const pKind = isSnow ? 'snow' : isFog ? 'mist' : isFire ? 'embers' : baseAtm.particles;
     this.buildParticles(M, pKind, isNight);
+    if (!isNight && tname !== 'cave' && !isSnow) {
+      this.buildSunbeams(M, tname === 'interior');
+    }
 
     // ── 7) 目的地光環 ──
     const drGeo = new THREE.RingGeometry(0.24, 0.36, 24);
@@ -566,12 +572,77 @@ export class HD2DRenderer {
     const geo = new THREE.PlaneGeometry(M.W, M.H);
     geo.rotateX(-Math.PI / 2);
     const rec = getTexture(def.image);
-    const mat = new THREE.MeshStandardMaterial({ map: rec.tex, roughness: 0.88, metalness: 0.02 });
+    const mat = new THREE.MeshStandardMaterial({ map: rec.tex, roughness: 0.85, metalness: 0.04 });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(M.W / 2, 0, M.H / 2);
     mesh.receiveShadow = true;
     this.staticGroup.add(mesh);
     this.worldImgMesh = { mesh, rec };
+
+    // 古風雕木地圖沙盤邊框
+    const frameMat = new THREE.MeshStandardMaterial({ color: 0x3b2412, roughness: 0.72, metalness: 0.15 });
+    const thick = 0.55;
+    const borders = [
+      [M.W + thick * 2, 0.35, thick, M.W / 2, 0.12, -thick / 2],
+      [M.W + thick * 2, 0.35, thick, M.W / 2, 0.12, M.H + thick / 2],
+      [thick, 0.35, M.H, -thick / 2, 0.12, M.H / 2],
+      [thick, 0.35, M.H, M.W + thick / 2, 0.12, M.H / 2],
+    ];
+    for (const [bw, bh, bd, bx, by, bz] of borders) {
+      const bm = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), frameMat);
+      bm.position.set(bx, by, bz); bm.castShadow = true;
+      this.staticGroup.add(bm);
+    }
+
+    // 3D 金色驛道光點標記
+    const dotGeo = new THREE.CylinderGeometry(0.14, 0.18, 0.06, 12);
+    const dotMat = new THREE.MeshStandardMaterial({ color: 0xe6be60, emissive: 0x704808, roughness: 0.35, metalness: 0.65 });
+    for (let y = 0; y < M.H; y++) for (let x = 0; x < M.W; x++) {
+      if (M.rows[y][x] === '.') {
+        const d = new THREE.Mesh(dotGeo, dotMat);
+        d.position.set(x + 0.5, 0.03, y + 0.5);
+        this.staticGroup.add(d);
+      }
+    }
+
+    // 3D 水墨飄雲層（浮於山河上空，呈現大作世界地圖立體層次！）
+    this.worldClouds = [];
+    const cTex = getParticleTex();
+    for (let i = 0; i < 12; i++) {
+      const cm = new THREE.Mesh(
+        new THREE.PlaneGeometry(4.5 + (i % 3) * 2.2, 2.2 + (i % 2) * 1.1),
+        new THREE.MeshBasicMaterial({ map: cTex, color: 0xf6efe0, transparent: true, opacity: 0.18 + (i % 3) * 0.05, depthWrite: false })
+      );
+      cm.rotation.x = -Math.PI / 2;
+      cm.position.set((i * 3.7) % (M.W + 6) - 3, 2.2 + (i % 3) * 0.45, (i * 2.3) % M.H);
+      this.staticGroup.add(cm);
+      this.worldClouds.push({ mesh: cm, spd: 0.32 + (i % 4) * 0.12, span: M.W + 8 });
+    }
+  }
+
+  buildSunbeams(M, subtle = false) {
+    this.sunbeams = [];
+    const bTex = getBeamTex();
+    const count = this.quality === 'high' ? (subtle ? 3 : 5) : 0;
+    for (let i = 0; i < count; i++) {
+      const m = new THREE.Mesh(
+        new THREE.PlaneGeometry(3.2, 13),
+        new THREE.MeshBasicMaterial({
+          map: bTex,
+          color: 0xffe8b2,
+          transparent: true,
+          opacity: subtle ? 0.08 : 0.11,
+          blending: THREE.AdditiveBlending,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+        })
+      );
+      m.position.set((i + 0.5) * (M.W / count), 5.2, (M.H * 0.35) + ((i % 2) * M.H * 0.3));
+      m.rotation.z = -0.34;
+      m.rotation.y = 0.22;
+      this.staticGroup.add(m);
+      this.sunbeams.push({ mesh: m, base: subtle ? 0.07 : 0.11, ph: i * 1.9 });
+    }
   }
 
   buildWater(M, S, isNight, isSnow) {
@@ -1137,6 +1208,17 @@ export class HD2DRenderer {
     }
     for (const rd of this.swayReeds) {
       rd.mesh.rotation.z = Math.sin(t * 1.85 + rd.phase) * 0.085;
+    }
+    if (this.worldClouds) {
+      for (const cl of this.worldClouds) {
+        cl.mesh.position.x += cl.spd * dt;
+        if (cl.mesh.position.x > cl.span - 3) cl.mesh.position.x = -5;
+      }
+    }
+    if (this.sunbeams) {
+      for (const sb of this.sunbeams) {
+        sb.mesh.material.opacity = sb.base * (0.75 + 0.25 * Math.sin(t * 0.7 + sb.ph));
+      }
     }
     if (this.particles && this.particleMeta) {
       const pm = this.particleMeta;
