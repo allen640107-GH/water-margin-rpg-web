@@ -20,6 +20,14 @@ const quests = {
 };
 
 const scripts = {
+  cang_clues_done: `
+@if flag:clue1 & flag:clue2 & flag:clue3 & !flag:luqian_done
+林沖|火石火鐮……草料場……差撥的醉話……
+林沖|陸謙！你若敢來，我林沖定叫你粉身碎骨！
+|林沖買了一把解腕尖刀帶在身上，在城裡四處尋了三五日，卻再不見陸謙蹤影，心下漸漸放鬆了。
+@flag luqian_done
+林沖|（線索都問齊了，先回東北角的「牢城營管營」處報到看看吧。）
+@end`,
   yuemiao: `
 @if !flag:yuemiao_done
 |岳廟前，一個衙內模樣的公子正攔著林娘子，不讓她走。
@@ -413,6 +421,18 @@ const maps = {
 林沖|……五短身材、白淨面皮——那是陸虞候陸謙！他竟追到滄州來害我！
 @flag luqian_seen
 @quest q1_luqian
+@elif flag:luqian_seen & !flag:luqian_done
+@if flag:clue1 & flag:clue2 & flag:clue3
+@run cang_clues_done
+管營|林沖，你來營中多時，柴大官人面上，我派你去東門外十五里的大軍草料場，比天王堂還輕鬆，每月有些常例錢。
+林沖|（草料場……也好，遠離是非。）多謝管營。
+@flag caoliao_go
+@quest q1_luqian done
+@quest q1_wine
+@else
+管營|好好當差，莫要生事。
+|（提示：在城中向「賣菜老漢」、「村婦」、「牢頭」三人打聽完東京軍官的下落後，再回牢城營向管營覆命。）
+@end
 @elif flag:luqian_done & !flag:caoliao_go
 管營|林沖，你來營中多時，柴大官人面上，我派你去東門外十五里的大軍草料場，比天王堂還輕鬆，每月有些常例錢。
 林沖|（草料場……也好，遠離是非。）多謝管營。
@@ -427,6 +447,7 @@ const maps = {
 老漢|東京來的兩位官人？前兩天在城北客店住過，昨天一早就退房了。
 老漢|聽店家說他們往東門那邊去了，臨走還買了火石火鐮……奇怪，大白天買那個做啥？
 @flag clue1
+@run cang_clues_done
 @else
 老漢|滄州地方不大，有什麼新鮮事都瞞不過老漢。
 @end`),
@@ -434,6 +455,7 @@ const maps = {
 @if flag:luqian_seen & !flag:clue2
 村婦|那個軍官模樣的？見過見過，他向我打聽草料場怎麼走，我還奇怪呢。
 @flag clue2
+@run cang_clues_done
 @else
 村婦|最近天冷，聽說要下大雪了。
 @end`),
@@ -441,17 +463,11 @@ const maps = {
 @if flag:luqian_seen & !flag:clue3
 牢頭|那差撥最近闊氣得很，喝醉了說什麼「草料場那邊，包管教他……」話沒說完就睡了。
 @flag clue3
+@run cang_clues_done
 @else
 牢頭|配軍也有配軍的活法，林教頭是個體面人。
 @end`),
-      E: trig(`
-@if flag:clue1 & flag:clue2 & flag:clue3 & !flag:luqian_done
-林沖|火石火鐮……草料場……差撥的醉話……
-林沖|陸謙！你若敢來，我林沖定叫你粉身碎骨！
-|林沖買了一把解腕尖刀帶在身上，在城裡四處尋了三五日，卻再不見陸謙蹤影，心下漸漸放鬆了。
-@flag luqian_done
-林沖|（先回牢城營看看吧。）
-@end`, { once: false }),
+      E: trig(`@run cang_clues_done`, { once: false }),
       G: foe('thug@4+thug@3', { name: '潑皮', post: `
 潑皮|好漢饒命！我們再也不敢在城裡收保護費了！
 @flag s1_cang1` }),
@@ -460,7 +476,7 @@ const maps = {
 @quest s1_cang done
 @gold 40` }),
       K: chest('pill', 1),
-      X: exit('caoliao', 'start', '草料場', { cond: 'flag:caoliao_go', deny: '|城外是荒野，無事不可擅離牢城。' }),
+      X: exit('caoliao', 'start', '草料場', { cond: 'flag:caoliao_go', deny: '|城外是荒野，還沒接到調派公文不可擅離。先去東北角「牢城營管營」報到，並向城裡「賣菜老漢、村婦、牢頭」打聽完消息再回報管營。' }),
     },
     intro: `
 |滄州牢城到了。董超、薛霸交割了公文，灰溜溜地回東京去了。
@@ -493,7 +509,19 @@ const maps = {
     marks: {
       '1': entry('start'),
       H: npc('老軍', 'n_elder', `
-@if !flag:cl_keys
+@if item:k_wine & !flag:hut_down
+|林沖挑著酒葫蘆回到草料場——兩間草廳竟已被大雪壓倒！
+@flag hut_down
+@tile 10 5 ^
+@tile 11 5 ^
+@tile 12 5 ^
+@tile 13 5 ^
+@tile 14 5 ^
+@tile 12 7 ^
+林沖|天理昭然，佑護善人義士！若我在屋裡，豈不被壓死！
+林沖|（翻出一條絮被）……先去西北邊半里路的山神廟過一夜，明早再作理會。
+@quest q1_miao
+@elif !flag:cl_keys
 老軍|你就是新來的林教頭？這草料場交給你了。這裡天寒，我留個酒葫蘆給你。
 @give k_gourd
 老軍|往東走二三里有個村店，可以去打酒。小心路上的餓狼。

@@ -14,7 +14,7 @@ import { HEROES } from './data/heroes.js';
 import { BOSSES } from './data/enemies.js';
 import { pollGamepad } from './gamepad.js';
 
-const VERSION = '3.2.0 HD-2D';
+const VERSION = '3.3.0 HD-2D';
 let scriptDepth = 0, inGame = false, lastPos = null;
 
 // ───── 劇本 API ─────

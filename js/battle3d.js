@@ -211,13 +211,13 @@ export class Battle3DStage {
   }
 
   buildUnits() {
-    // 我方好漢站位（右側斜列，FF7/FF8 經典陣型！）
+    // 我方好漢站位（右側斜列梯隊，確保 3-4 人從攝影機視角完全不重疊！）
     const an = this.allies.length;
     this.allies.forEach((a, i) => {
       const rig = createBattleUnitModel(a, this.biome);
       const frac = an === 1 ? 0 : (i / (an - 1) - 0.5);
-      const x = 3.55 + Math.abs(frac) * 0.65;
-      const z = frac * Math.min(4.8, (an - 1) * 1.95) + 0.35;
+      const x = 3.05 + frac * 1.15;
+      const z = frac * Math.min(4.6, (an - 1) * 1.95) + 0.15;
       rig.homePos.set(x, 0, z);
       rig.homeRotY = -Math.PI * 0.18;
       rig.root.position.copy(rig.homePos);
@@ -227,13 +227,13 @@ export class Battle3DStage {
       this.units.set(a, rig);
     });
 
-    // 敵方／頭目站位（左側弧陣，正對我方！）
+    // 敵方／頭目站位（左側斜列梯隊，正對我方且彼此錯開！）
     const fn = this.foes.length;
     this.foes.forEach((f, i) => {
       const rig = createBattleUnitModel(f, this.biome);
       const frac = fn === 1 ? 0 : (i / (fn - 1) - 0.5);
-      const x = -3.65 - Math.abs(frac) * 0.65;
-      const z = frac * Math.min(5.2, (fn - 1) * 2.2) - 0.15;
+      const x = -3.55 - frac * 1.35;
+      const z = frac * Math.min(5.2, (fn - 1) * 2.35) - 0.15;
       rig.homePos.set(x, 0, z);
       rig.homeRotY = Math.PI * 0.18;
       rig.root.position.copy(rig.homePos);
