@@ -90,6 +90,94 @@ HERO_CFG = {
             [(1, 0, True),  (1, 1, True),  (3, 0, False)],  # 左：左右腳交替步＋皆持拐杖
         ]
     },
+    'n_waiter': {
+        'rows': [
+            [(0, 0, False), (0, 1, False), (0, 2, False)],
+            [(1, 0, False), (1, 1, False), (3, 0, True)],
+            [(2, 0, False), (2, 1, False), (2, 2, False)],
+            [(1, 0, True),  (1, 1, True),  (3, 0, False)],
+        ]
+    },
+    'n_woman': {
+        'rows': [
+            [(0, 0, False), (0, 1, False), (0, 0, True)],
+            [(1, 0, False), (1, 1, False), (3, 0, True)],
+            [(2, 0, False), (2, 1, False), (2, 0, True)],
+            [(1, 0, True),  (1, 1, True),  (3, 0, False)],
+        ]
+    },
+    'n_lady': {
+        'rows': [
+            [(0, 0, False), (0, 1, False), (0, 2, False)],
+            [(1, 0, False), (1, 1, False), (3, 0, True)],
+            [(2, 0, False), (2, 1, False), (2, 0, True)],
+            [(1, 0, True),  (1, 1, True),  (3, 0, False)],
+        ]
+    },
+    'n_villager': {
+        'rows': [
+            [(0, 0, False), (0, 1, False), (0, 2, False)],
+            [(1, 0, False), (1, 1, False), (3, 0, True)],
+            [(2, 0, False), (2, 1, False), (2, 2, False)],
+            [(1, 0, True),  (1, 1, True),  (3, 0, False)],
+        ]
+    },
+    'n_merchant': {
+        'rows': [
+            [(0, 0, False), (0, 1, False), (0, 2, False)],
+            [(1, 0, False), (1, 1, False), (3, 0, True)],
+            [(2, 0, False), (2, 1, False), (2, 2, False)],
+            [(1, 0, True),  (1, 1, True),  (3, 0, False)],
+        ]
+    },
+    'n_noble': {
+        'rows': [
+            [(0, 0, False), (0, 1, False), (0, 2, False)],
+            [(1, 0, False), (1, 1, False), (3, 0, True)],
+            [(2, 0, False), (2, 1, False), (2, 2, False)],
+            [(1, 0, True),  (1, 1, True),  (3, 0, False)],
+        ]
+    },
+    'n_child': {
+        'rows': [
+            [(0, 0, False), (0, 1, False), (0, 0, True)],
+            [(1, 0, True),  (1, 1, False), (1, 2, False)],
+            [(2, 0, False), (2, 1, False), (2, 2, False)],
+            [(1, 0, False), (1, 1, True),  (1, 2, True)],
+        ]
+    },
+    'ruanxiaoqi': {
+        'rows': [
+            [(0, 2, False), (0, 2, False), (0, 0, True)],
+            [(1, 0, True),  (3, 1, False), (1, 2, False)],
+            [(2, 0, True),  (2, 1, False), (2, 2, False)],
+            [(1, 0, False), (3, 1, True),  (1, 2, True)],
+        ]
+    },
+    'sunerniang': {
+        'rows': [
+            [(0, 0, False), (0, 1, False), (0, 2, False)],
+            [(1, 0, False), (1, 1, False), (3, 0, True)],
+            [(2, 0, False), (2, 1, False), (2, 2, False)],
+            [(1, 0, True),  (1, 1, True),  (3, 0, False)],
+        ]
+    },
+    'zhangshun': {
+        'rows': [
+            [(0, 0, False), (0, 1, False), (0, 2, False)],
+            [(1, 0, False), (1, 1, False), (3, 0, True)],
+            [(2, 0, False), (2, 1, False), (2, 2, True)],
+            [(1, 0, True),  (1, 1, True),  (3, 0, False)],
+        ]
+    },
+    'liutang': {
+        'rows': [
+            [(0, 0, False), (0, 0, False), (0, 2, True)],
+            [(1, 0, False), (1, 1, False), (3, 0, True)],
+            [(2, 0, False), (2, 1, False), (2, 2, False)],
+            [(1, 0, True),  (1, 1, True),  (3, 0, False)],
+        ]
+    },
 }
 
 def remove_white_bg(im: Image.Image) -> Image.Image:

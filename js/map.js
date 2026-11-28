@@ -7,7 +7,22 @@ import { ARCHETYPES, BOSSES } from './data/enemies.js';
 import { sfx } from './audio.js';
 import { HD2DRenderer } from './map3d.js';
 
-export const M = { id: null, def: null, W: 0, H: 0, rows: [], inst: [], px: 0, py: 0, moving: false, sprint: false, path: [], dirty: true, ts: 48, cam: [0, 0], dest: null, t0: 0 };
+export const M = { id: null, def: null, W: 0, H: 0, rows: [], inst: [], px: 0, py: 0, moving: false, sprint: false, path: [], dirty: true, ts: 48, cam: [0, 0], dest: null, t0: 0, respawn: {} };
+
+// 判斷是否為「可重複再生」的路上普通小怪（排除頭目、劇情戰、演武場、一次性事件怪）
+export function isRespawnFoe(d) {
+  if (!d || d.type !== 'foe') return false;
+  if (d.boss || d.noEscape || d.post || d.pre || d.arena || d.once) return false;
+  const f0 = (d.foe || '').split('+')[0];
+  if (BOSSES[f0] && BOSSES[f0].boss) return false;
+  return true;
+}
+
+// 排程普通小怪在原地自動再生（25 秒或走動 12 步後，且主角離開該格至少 2 格時復出）
+export function scheduleFoeRespawn(inst) {
+  if (!inst || !isRespawnFoe(inst.d)) return;
+  M.respawn[inst.id] = { inst, at: performance.now() + 25000, steps: (G.s.steps || 0) + 12 };
+}
 export const MAPH = {}; // main.js 提供：interact(inst), stepOn(inst), onPlates(), busy(), heldDir()
 
 const TILECH = new Set(',.:_*s~=F^#R+rTxo'.split(''));
@@ -65,12 +80,14 @@ export function loadMap(def, id, entry) {
   const lines = def.grid.replace(/^\n+|\n+\s*$/g, '').split('\n');
   M.H = lines.length; M.W = Math.max(...lines.map(l => l.length));
   M.rows = lines.map(l => l.padEnd(M.W, def.image ? ' ' : '#').split(''));
-  M.inst = []; const infer = [];
+  M.inst = []; M.respawn = {}; const infer = [];
   const ms = mapState(id);
   for (let y = 0; y < M.H; y++) for (let x = 0; x < M.W; x++) {
     const ch = M.rows[y][x], md = def.marks && def.marks[ch];
     if (md) {
       const inst = { key: ch, x, y, ox: x, oy: y, d: md, id: `${id}:${x},${y}` };
+      // 切換進入地圖時，自動再生該圖所有路上普通小怪（頭目與劇情怪保持永久擊敗）
+      if (isRespawnFoe(md) && G.s && G.s.flags) delete G.s.flags['k:' + inst.id];
       M.inst.push(inst);
       M.rows[y][x] = md.under || def.ground || ',';
       if (!md.under) infer.push([x, y]);
@@ -159,6 +176,20 @@ function animateTo(nx, ny, overshootMs = 0) {
   M.anim = { sx, sy, nx, ny, t0, dur };
 }
 export function update(now) {
+  // 檢查同圖普通小怪是否達到再生條件（過 25 秒或走滿 12 步，且玩家距離 >= 2 格避免貼臉重疊）
+  if (M.respawn && G.s && !(MAPH.busy && MAPH.busy())) {
+    const steps = G.s.steps || 0;
+    for (const [id, r] of Object.entries(M.respawn)) {
+      if (now >= r.at || steps >= r.steps) {
+        const dist = Math.abs(M.px - r.inst.x) + Math.abs(M.py - r.inst.y);
+        if (dist >= 2) {
+          if (G.s.flags) delete G.s.flags['k:' + id];
+          delete M.respawn[id];
+          M.dirty = true;
+        }
+      }
+    }
+  }
   if (M.anim) {
     const a = M.anim, elapsed = now - a.t0, k = Math.min(1, elapsed / a.dur);
     // 單步時柔和緩動，連續按住方向時保持等速零卡頓滑行！

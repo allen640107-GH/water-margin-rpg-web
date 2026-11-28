@@ -7,14 +7,14 @@ import { UI, UIH, advanceDialog, say, choice, toast, caption, fade, setCG, openM
 import { battle, B } from './battle.js';
 import { playMusic, currentMusic, sfx, installAudioUnlock, isMuted, setMuted, resume, audioState } from './audio.js';
 import { img, preload, onAnyLoad, url } from './assets.js';
-import { M, MAPH, initMap, resize, loadMap, update, draw, tryStep, pathTo, facing, screenToTile, mapState, visible, instAt, resetBoulders, sceneAssets, getGfxMode, setGfxMode, isHD2D, shakeMap } from './map.js';
+import { M, MAPH, initMap, resize, loadMap, update, draw, tryStep, pathTo, facing, screenToTile, mapState, visible, instAt, resetBoulders, sceneAssets, getGfxMode, setGfxMode, isHD2D, shakeMap, isRespawnFoe, scheduleFoeRespawn } from './map.js';
 import { MAPS, SCRIPTS, QUESTS, CHAPTERS } from './data/world.js';
 import { ITEMS } from './data/items.js';
 import { HEROES } from './data/heroes.js';
 import { BOSSES } from './data/enemies.js';
 import { pollGamepad } from './gamepad.js';
 
-const VERSION = '3.3.0 HD-2D';
+const VERSION = '3.4.0 HD-2D';
 let scriptDepth = 0, inGame = false, lastPos = null;
 
 // ───── 劇本 API ─────
@@ -111,7 +111,7 @@ async function interact(i) {
       scriptDepth++;
       let r;
       try { r = await doBattle(d.foe, { noEscape: !!d.noEscape || !!d.boss }); } finally { scriptDepth--; }
-      if (r === 'win') { setFlag('k:' + i.id); M.dirty = true; if (d.post) await runScript(d.post); autosave(); }
+      if (r === 'win') { setFlag('k:' + i.id); if (isRespawnFoe(d)) scheduleFoeRespawn(i); M.dirty = true; if (d.post) await runScript(d.post); autosave(); }
       else if (r === 'lose' && d.arena) { healAll(); await toast('勝敗乃兵家常事，練好武藝再來！', 2000); }
       else if (r === 'lose') await gameOver();
       break;
