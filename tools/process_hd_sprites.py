@@ -82,6 +82,14 @@ HERO_CFG = {
             [(1, 0, True),  (1, 1, True),  (1, 2, True)],
         ]
     },
+    'n_elder': {
+        'rows': [
+            [(0, 0, True),  (0, 1, False), (0, 2, False)],  # 上(背)：拐杖統一在右手
+            [(1, 0, False), (1, 1, False), (3, 0, True)],   # 右：左右腳交替步＋皆持拐杖
+            [(2, 0, False), (2, 1, False), (2, 2, False)],  # 下(正)
+            [(1, 0, True),  (1, 1, True),  (3, 0, False)],  # 左：左右腳交替步＋皆持拐杖
+        ]
+    },
 }
 
 def remove_white_bg(im: Image.Image) -> Image.Image:
